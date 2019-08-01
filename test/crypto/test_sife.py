@@ -6,8 +6,8 @@ import logging
 import numpy as np
 from contextlib import contextmanager
 
-parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.sys.path.insert(0,parentdir)
+crypto_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.sys.path.insert(0, crypto_path)
 
 from crypto.sife import SIFE
 

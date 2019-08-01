@@ -1,8 +1,11 @@
 import datetime
 import logging
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 
+crypto_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.sys.path.insert(0, crypto_path)
 
 from crypto.sife import SIFE
 from nn.utils import load_mnist
