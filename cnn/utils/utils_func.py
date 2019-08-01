@@ -22,7 +22,7 @@ def zero_pad(X, pad):
     return X_pad
 
 # normalization of the input images
-def normalize(image, mode='lenet5'):
+def normalize(image, mode='cnn'):
     image -= image.min()
     image = image / image.max()
     # range = [0,1]
@@ -32,7 +32,7 @@ def normalize(image, mode='lenet5'):
     elif mode == 'n1p1':
         image = image * 2 - 1
     # range = [-0.1,1.175]   
-    elif mode == 'lenet5':
+    elif mode == 'cnn':
         image = image * 1.275 - 0.1
     return image
 

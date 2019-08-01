@@ -131,8 +131,8 @@ class LeNet5(object):
 def train_eval():
     train_image, train_label, test_image, test_label = load_dataset()
     n_m, n_m_test = len(train_label), len(test_label)
-    train_image_normalized_pad = normalize(zero_pad(train_image[:,:,:,np.newaxis], 2),'lenet5')
-    test_image_normalized_pad  = normalize(zero_pad(test_image[:,:,:,np.newaxis],  2),'lenet5')
+    train_image_normalized_pad = normalize(zero_pad(train_image[:,:,:,np.newaxis], 2),'cnn')
+    test_image_normalized_pad  = normalize(zero_pad(test_image[:,:,:,np.newaxis],  2),'cnn')
     print("The shape of training image with padding:", train_image_normalized_pad.shape)
     print("The shape of testing image with padding: ", test_image_normalized_pad.shape)
 

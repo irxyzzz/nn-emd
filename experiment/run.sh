@@ -1,0 +1,1 @@
+python exp.py > ../logs/run_exp_$(date +"%F-%T").log &
