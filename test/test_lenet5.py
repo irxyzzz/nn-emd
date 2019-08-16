@@ -21,6 +21,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+np.random.seed(520)
 
 def test_lenet5_basic():
     logger.info('Loading the dataset ...')
@@ -101,7 +102,7 @@ def test_lenet5_with_output():
 def test_lenet5_smc_small_dataset():
     batch_size = 32
     epoch = 1
-    size = batch_size * 10
+    size = batch_size * 2
     logger.info('Loading the dataset with size ' + str(size) + ' ...')
     # train_images, train_labels = load_mnist('../datasets/mnist')
     # test_images, test_labels = load_mnist('../datasets/mnist', kind='t10k')

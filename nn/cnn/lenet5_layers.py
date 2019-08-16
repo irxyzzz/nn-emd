@@ -64,17 +64,17 @@ class Convolution2D:
                 for w in range(WW):
                     for h in range(HH):
                         ct_inputs = self.smc.cnn_client_execute(self.inputs[:, w:w + self.K, h:h + self.K])
-                        # print('input:', self.inputs[:, w:w + self.K, h:h + self.K])
-                        # print('weight:', self.weights[f, :, :, :])
+                        print('input:', self.inputs[:, w:w + self.K, h:h + self.K])
+                        print('weight:', self.weights[f, :, :, :])
                         feature_maps[f, w, h] = self.smc.cnn_server_execute(
                             self.sk[f],
                             ct_inputs,
                             self.weights[f, :, :, :]
                         ) + self.bias[f]
-                        # expt_feature_maps[f, w, h] = np.sum(
-                        #     self.inputs[:, w:w + self.K, h:h + self.K] * self.weights[f, :, :, :]) + self.bias[f]
-            # print(feature_maps)
-            # print(expt_feature_maps)
+                        expt_feature_maps[f, w, h] = np.sum(
+                            self.inputs[:, w:w + self.K, h:h + self.K] * self.weights[f, :, :, :]) + self.bias[f]
+            print(feature_maps)
+            print(expt_feature_maps)
             return feature_maps
 
     def backward(self, dy):

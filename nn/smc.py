@@ -35,7 +35,7 @@ class Secure2PC():
             logger.debug('sk: \n' + str(sk))
             logger.debug('ct: \n' + str(ct))
             logger.debug('weights: \n' + str(weights))
-            return 0.0
+            assert False
         return float(dec_prod)/pow(10, self.precision*2)
 
 
