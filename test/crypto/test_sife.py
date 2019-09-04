@@ -16,8 +16,8 @@ from keras.models import load_model
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-tpa_config_file = '../../config/sife_v25_b8.json'
-client_config_file = '../../config/sife_v25_b8_dlog.json'
+tpa_config_file = '../../config/sife_v785_b8.json'
+client_config_file = '../../config/sife_v785_b8_dlog.json'
 
 @contextmanager
 def timer(ctx_msg):
@@ -34,7 +34,7 @@ def test_generate_config_file():
     secparam = 256
     # 2 parties settings
     sife = SIFE()
-    eta = 25
+    eta = 785
     sife.generate_setup_config(tpa_config_file, secparam, eta)
     sife.generate_dlog_table_config(client_config_file, func_value_bound)
 

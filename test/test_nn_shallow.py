@@ -1,15 +1,18 @@
-from nn.nn_shallow import NNShallow
-from nn.utils import load_mnist, load_mnist_size
+from nn.shallow.nn_shallow import NNShallow
+from nn.utils import load_mnist_size
 import numpy as np
 import sys
-import time
-import matplotlib.pyplot as plt
 
 
+def labels_mapping(y, r):
+    y_prime = (y + r) % (np.unique(y).shape[0])
+    return y_prime
 
 def test_nn_shallow_mnist():
-    X_train, y_train = load_mnist_size('../datasets/mnist', size=6000)
-    X_test, y_test = load_mnist_size('../datasets/mnist', size=1000, kind='t10k')
+    X_train, y_train = load_mnist_size('../datasets/mnist', size=600)
+    # y_train = labels_mapping(y_train, 7)
+    X_test, y_test = load_mnist_size('../datasets/mnist', size=100, kind='t10k')
+    # y_test = labels_mapping(y_test, 7)
     # X_train, y_train = load_mnist('../datasets/mnist')
     # X_test, y_test = load_mnist('../datasets/mnist', kind='t10k')
     nn = NNShallow(n_output=10,

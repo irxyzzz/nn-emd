@@ -160,7 +160,11 @@ class NNShallow(object):
 
     def _feedforward_secure(self, X, w1, w2):
         a1 = self._add_bias_unit(X, how='column')
-        z2 = self.sc.secure_inner_product_realn_multiprocessing(a1.T, w1, 100, 100)
+        # simulate the smc
+        ct_a1 = self.smc.client_execute(a1)
+        sk = self.smc.server_key_request(w1)
+        z2 = self.smc.server_execute(sk, ct_a1, w1)
+        # end of smc
         a2 = self._sigmoid(z2)
         a2 = self._add_bias_unit(a2, how='row')
         z3 = w2.dot(a2)
@@ -345,7 +349,7 @@ class NNShallow(object):
         self.cost_ = []
         train_loss_hist = list()
         X_data, y_data = X.copy(), y.copy()
-        y_enc = self._encode_labels(y, self.n_output)
+        y_enc = self._encode_labels(y_data, self.n_output)
 
         delta_w1_prev = np.zeros(self.w1.shape)
         delta_w2_prev = np.zeros(self.w2.shape)

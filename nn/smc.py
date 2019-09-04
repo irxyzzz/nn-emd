@@ -6,6 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class Secure2PC():
 
     def __init__(self, crypto, vec_len, precision):
@@ -14,18 +15,18 @@ class Secure2PC():
         self.pk = crypto.generate_public_key()
         self.precision = precision
 
-    def cnn_client_execute(self, data):
+    def client_execute(self, data):
         input_shape = data.shape
         data_list = (data * pow(10, self.precision)).astype(int).flatten().tolist()
         ct_data = self.crypto.encrypt(self.pk, data_list)
         return ct_data
 
-    def cnn_server_key_request(self, weights):
+    def server_key_request(self, weights):
         weights_list = (weights * pow(10, self.precision)).astype(int).flatten().tolist()
         sk = self.crypto.generate_private_key(weights_list)
         return sk
 
-    def cnn_server_execute(self, sk, ct, weights):
+    def server_execute(self, sk, ct, weights):
         weights_list = (weights * pow(10, self.precision)).astype(int).flatten().tolist()
         max_value = 1000
         max_inner_prod = 100000000 # max_value * max_value * self.vec_len
