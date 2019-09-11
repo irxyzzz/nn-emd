@@ -150,26 +150,13 @@ class NNShallow(object):
             Activation of output layer.
 
         """
-        a1 = self._add_bias_unit(X, how='column')
-        z2 = w1.dot(a1.T)
+        # a1 = self._add_bias_unit(X, how='column')
+        z2 = w1.dot(X.T)
         a2 = self._sigmoid(z2)
         a2 = self._add_bias_unit(a2, how='row')
         z3 = w2.dot(a2)
         a3 = self._sigmoid(z3)
-        return a1, z2, a2, z3, a3
-
-    def _feedforward_secure(self, X, w1, w2):
-        a1 = self._add_bias_unit(X, how='column')
-        # simulate the smc
-        ct_a1 = self.smc.client_execute(a1)
-        sk = self.smc.server_key_request(w1)
-        z2 = self.smc.server_execute(sk, ct_a1, w1)
-        # end of smc
-        a2 = self._sigmoid(z2)
-        a2 = self._add_bias_unit(a2, how='row')
-        z3 = w2.dot(a2)
-        a3 = self._sigmoid(z3)
-        return a1, z2, a2, z3, a3
+        return z2, a2, z3, a3
 
     def _L2_reg(self, lambda_, w1, w2):
         """Compute L2-regularization cost"""
@@ -203,16 +190,6 @@ class NNShallow(object):
         """
         term1 = -y_enc * (np.log(output))
         term2 = (1.0 - y_enc) * np.log(1.0 - output)
-        cost = np.sum(term1 - term2)
-        L1_term = self._L1_reg(self.l1, w1, w2)
-        L2_term = self._L2_reg(self.l2, w1, w2)
-        cost = cost + L1_term + L2_term
-        return cost
-
-    def _get_cost_secure(self, y_enc, output, w1, w2):
-        precision = 1000
-        term1 = - self.sc.secure_multiplication_multiprocessing(y_enc, np.log(output), precision, precision)
-        term2 = self.sc.secure_multiplication_multiprocessing((1.0 - y_enc), np.log(1.0 - output), precision, precision)
         cost = np.sum(term1 - term2)
         L1_term = self._L1_reg(self.l1, w1, w2)
         L2_term = self._L2_reg(self.l2, w1, w2)
@@ -287,24 +264,6 @@ class NNShallow(object):
 
         return grad1, grad2
 
-    def _get_gradient_secure(self, a1, a2, a3, z2, y_enc, w1, w2):
-        # backpropagation
-        # sigma3 = a3 - y_enc
-        sigma3 = self.sc.secure_subtraction(a3 - y_enc, 1000)
-        z2 = self._add_bias_unit(z2, how='row')
-        sigma2 = w2.T.dot(sigma3) * self._sigmoid_gradient(z2)
-        sigma2 = sigma2[1:, :]
-        grad1 = sigma2.dot(a1)
-        grad2 = sigma3.dot(a2.T)
-
-        # regularize
-        grad1[:, 1:] += self.l2 * w1[:, 1:]
-        grad1[:, 1:] += self.l1 * np.sign(w1[:, 1:])
-        grad2[:, 1:] += self.l2 * w2[:, 1:]
-        grad2[:, 1:] += self.l1 * np.sign(w2[:, 1:])
-
-        return grad1, grad2
-
     def predict(self, X):
         """Predict class labels
 
@@ -323,8 +282,8 @@ class NNShallow(object):
             raise AttributeError('X must be a [n_samples, n_features] array.\n'
                                  'Use X[:,None] for 1-feature classification,'
                                  '\nor X[[i]] for 1-sample classification')
-
-        a1, z2, a2, z3, a3 = self._feedforward(X, self.w1, self.w2)
+        X = self._add_bias_unit(X, how='column')
+        z2, a2, z3, a3 = self._feedforward(X, self.w1, self.w2)
         y_pred = np.argmax(z3, axis=0)
         return y_pred
 
@@ -347,12 +306,13 @@ class NNShallow(object):
 
         """
         self.cost_ = []
-        train_loss_hist = list()
         X_data, y_data = X.copy(), y.copy()
         y_enc = self._encode_labels(y_data, self.n_output)
 
         delta_w1_prev = np.zeros(self.w1.shape)
         delta_w2_prev = np.zeros(self.w2.shape)
+
+        X_data = self._add_bias_unit(X_data, how='column')
 
         for i in range(self.epochs):
 
@@ -369,27 +329,15 @@ class NNShallow(object):
             mini = np.array_split(range(y_data.shape[0]), self.minibatches)
             for idx in mini:
 
-                # feedforward
-                if self.flag:
-                    a1, z2, a2, z3, a3 = self._feedforward_secure(X_data[idx], self.w1, self.w2)
-                else:
-                    a1, z2, a2, z3, a3 = self._feedforward(X_data[idx], self.w1, self.w2)
+                z2, a2, z3, a3 = self._feedforward(X_data[idx], self.w1, self.w2)
 
                 cost = self._get_cost(y_enc=y_enc[:, idx], output=a3, w1=self.w1, w2=self.w2)
                 self.cost_.append(cost)
-                train_loss_hist.append(cost)
 
-                # compute gradient via backpropagation
-                if self.flag:
-                    grad1, grad2 = self._get_gradient_secure(a1=a1, a2=a2, a3=a3, z2=z2,
-                                                             y_enc=y_enc[:, idx], w1=self.w1, w2=self.w2)
-                else:
-                    grad1, grad2 = self._get_gradient(a1=a1, a2=a2, a3=a3, z2=z2,
-                                                      y_enc=y_enc[:, idx], w1=self.w1, w2=self.w2)
+                grad1, grad2 = self._get_gradient(a1=X_data[idx], a2=a2, a3=a3, z2=z2,
+                                                  y_enc=y_enc[:, idx], w1=self.w1, w2=self.w2)
 
                 delta_w1, delta_w2 = self.eta * grad1, self.eta * grad2
                 self.w1 -= (delta_w1 + (self.alpha * delta_w1_prev))
                 self.w2 -= (delta_w2 + (self.alpha * delta_w2_prev))
                 delta_w1_prev, delta_w2_prev = delta_w1, delta_w2
-
-        return self

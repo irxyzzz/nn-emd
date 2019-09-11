@@ -1,20 +1,36 @@
+import sys
+import datetime
+import logging
+
+import numpy as np
+import matplotlib.pyplot as plt
+
 from nn.shallow.nn_shallow import NNShallow
 from nn.utils import load_mnist_size
-import numpy as np
-import sys
+from nn.utils import timer
+
+t_str = str(datetime.datetime.today())
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+    datefmt='%m-%d %H:%M',
+    filename="logs/test_nn_shallow-" + '-'.join(t_str.split()[:1] + t_str.split()[1].split(':')[:2]) + '.log',
+    filemode='w')
+logger = logging.getLogger(__name__)
 
 
 def labels_mapping(y, r):
     y_prime = (y + r) % (np.unique(y).shape[0])
     return y_prime
 
+
 def test_nn_shallow_mnist():
-    X_train, y_train = load_mnist_size('../datasets/mnist', size=600)
+    X_train, y_train = load_mnist_size('datasets/mnist', size=600)
     # y_train = labels_mapping(y_train, 7)
-    X_test, y_test = load_mnist_size('../datasets/mnist', size=100, kind='t10k')
+    X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
     # y_test = labels_mapping(y_test, 7)
-    # X_train, y_train = load_mnist('../datasets/mnist')
-    # X_test, y_test = load_mnist('../datasets/mnist', kind='t10k')
+    # X_train, y_train = load_mnist('datasets/mnist')
+    # X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
     nn = NNShallow(n_output=10,
                    n_features=X_train.shape[1],
                    n_hidden=50,
@@ -26,8 +42,8 @@ def test_nn_shallow_mnist():
                    decrease_const=0.00001,
                    minibatches=50,
                    shuffle=True,
-                   random_state=1)
-    nn.fit(X_train, y_train, print_progress=True)
+                   random_state=520)
+    nn.fit(X_train, y_train)
 
     # plt.plot(range(len(nn.cost_)), nn.cost_)
     # plt.ylim([0, 2000])
@@ -49,37 +65,9 @@ def test_nn_shallow_mnist():
     # plt.show()
 
     y_train_pred = nn.predict(X_train)
-    # print(y_train_pred)
-
-    if sys.version_info < (3, 0):
-        acc = ((np.sum(y_train == y_train_pred, axis=0)).astype('float') /
-               X_train.shape[0])
-    else:
-        acc = np.sum(y_train == y_train_pred, axis=0) / X_train.shape[0]
+    acc = np.sum(y_train == y_train_pred, axis=0) / X_train.shape[0]
     print('Training accuracy: %.2f%%' % (acc * 100))
 
     y_test_pred = nn.predict(X_test)
-
-    if sys.version_info < (3, 0):
-        acc = ((np.sum(y_test == y_test_pred, axis=0)).astype('float') /
-               X_test.shape[0])
-    else:
-        acc = np.sum(y_test == y_test_pred, axis=0) / X_test.shape[0]
+    acc = np.sum(y_test == y_test_pred, axis=0) / X_test.shape[0]
     print('Test accuracy: %.2f%%' % (acc * 100))
-
-    # miscl_img = X_test[y_test != y_test_pred][:25]
-    # correct_lab = y_test[y_test != y_test_pred][:25]
-    # miscl_lab = y_test_pred[y_test != y_test_pred][:25]
-    #
-    # fig, ax = plt.subplots(nrows=5, ncols=5, sharex=True, sharey=True, )
-    # ax = ax.flatten()
-    # for i in range(25):
-    #     img = miscl_img[i].reshape(28, 28)
-    #     ax[i].imshow(img, cmap='Greys', interpolation='nearest')
-    #     ax[i].set_title('%d) t: %d p: %d' % (i + 1, correct_lab[i], miscl_lab[i]))
-    #
-    # ax[0].set_xticks([])
-    # ax[0].set_yticks([])
-    # plt.tight_layout()
-    # # plt.savefig('./figures/mnist_miscl.png', dpi=300)
-    # plt.show()

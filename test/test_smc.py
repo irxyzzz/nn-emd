@@ -4,28 +4,38 @@ import logging
 import numpy as np
 
 from nn.utils import timer
-from nn.smc import Secure2PC
-from crypto.sife import SIFE
-
+from nn.smc import Secure2PCClient
+from nn.smc import Secure2PCServer
+from crypto.sife_dynamic import SIFEDynamicTPA
+from crypto.sife_dynamic import SIFEDynamicClient
 
 t_str = str(datetime.datetime.today())
 logging.basicConfig(
     level=logging.DEBUG,
     format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
     datefmt='%m-%d %H:%M',
-    filename="../logs/" + __name__ + '-' + '-'.join(t_str.split()[:1] + t_str.split()[1].split(':')[:2]) + '.log',
+    filename="logs/test_smc-" + '-'.join(t_str.split()[:1] + t_str.split()[1].split(':')[:2]) + '.log',
     filemode='w')
-
 logger = logging.getLogger(__name__)
 
+def test_secure2pc():
+    logger.info('initialize the crypto system ...')
+    sec_param_config_file = 'config/sec_param.json'  # indicate kernel size 5
+    dlog_table_config_file = 'config/dlog_b8.json'
+    with timer('load sife config file, cost time', logger) as t:
+        eta = 1000
+        sec_param = 256
+        sife_tpa = SIFEDynamicTPA(eta, sec_param=sec_param, sec_param_config=sec_param_config_file)
+        sife_tpa.setup()
+        sife_enc_client = SIFEDynamicClient(role='enc')
+        sife_dec_client = SIFEDynamicClient(role='dec', dlog_table_config=dlog_table_config_file)
+        logger.info('the crypto system initialization done!')
 
-def test_smc():
-    logger.info('Initialize the crypto system ...')
-    tpa_config_file = '../config/sife_v25_b8.json'  # indicate kernel size 5
-    client_config_file = '../config/sife_v25_b8_dlog.json'
-    with timer('Load sife config file, cost time', logger) as t:
-        sife = SIFE(tpa_config=tpa_config_file, client_config=client_config_file)
-    smc = Secure2PC(crypto=sife, vec_len=25, precision=3)
+    precision_data = 3
+    precision_weight = 3
+
+    secure2pc_client = Secure2PCClient(crypto=(sife_tpa, sife_enc_client), precision=precision_data)
+    secure2pc_server = Secure2PCServer(crypto=(sife_tpa, sife_dec_client), precision=(precision_data, precision_weight))
 
     x = np.array(
         [[
@@ -46,76 +56,8 @@ def test_smc():
         ]]
     )
 
-    ct = smc.cnn_client_execute(x)
-    sk = smc.cnn_server_key_request(y)
-    dec = smc.cnn_server_execute(sk, ct, y)
-    print(dec)
-    print(np.sum(x * y))
-
-
-def test_debug():
-    logger.info('Initialize the crypto system ...')
-    tpa_config_file = '../config/sife_v25_b8.json'  # indicate kernel size 5
-    client_config_file = '../config/sife_v25_b8_dlog.json'
-    with timer('Load sife config file, cost time', logger) as t:
-        sife = SIFE(tpa_config=tpa_config_file, client_config=client_config_file)
-    smc = Secure2PC(crypto=sife, vec_len=25, precision=3)
-
-    x = np.array(
-        [[
-            [0.,          0.,          0.,          0.,          0.],
-            [0.,          0.,          0.,          0.,          0.],
-            [0.,          0., -0.41558442, -0.41558442, - 0.41558442],
-            [0.,          0., -0.41558442, -0.41558442, - 0.41558442],
-            [0.,          0., -0.41558442, -0.41558442, - 0.41558442]
-        ]])
-
-    y = np.array(
-        [[
-            [0.17161218,  0.07117842,  0.15008656,  0.082136,    0.25105555],
-            [0.00047548,  0.1192399,   0.2162013,   0.27802902,  0.21299565],
-            [0.3115482,   0.10583042, -0.1246947,   0.47440195, -0.149653],
-            [0.01516304,  0.19215812, -0.14611269, -0.19444506,  0.09169338],
-            [-0.21390367,  0.1111329,  -0.10536303,  0.0811303,   0.05937745]
-        ]]
-    )
-
-    ct = smc.cnn_client_execute(x)
-    sk = smc.cnn_server_key_request(y)
-    dec = smc.cnn_server_execute(sk, ct, y)
-    print(dec)
-    print(np.sum(x * y))
-
-def test_debug_cnn_server_execute():
-    logger.info('Initialize the crypto system ...')
-    tpa_config_file = '../config/sife_v25_b8.json'  # indicate kernel size 5
-    client_config_file = '../config/sife_v25_b8_dlog.json'
-    with timer('Load sife config file, cost time', logger) as t:
-        sife = SIFE(tpa_config=tpa_config_file, client_config=client_config_file)
-    smc = Secure2PC(crypto=sife, vec_len=25, precision=3)
-
-    x = np.array(
-        [[
-            [0.,          0.,          0.,          0.,          0.],
-            [0.,          0.,          0.,          0.,          0.],
-            [0.,          0., -0.41558442, -0.41558442, - 0.41558442],
-            [0.,          0., -0.41558442, -0.41558442, - 0.41558442],
-            [0.,          0., -0.41558442, -0.41558442, - 0.41558442]
-        ]])
-
-    y = np.array(
-        [[
-            [-0.48008473,  0.12267073, -0.12723622, -0.19595992, -0.04114851],
-            [0.1515689,   0.182664,   -0.4328572,  -0.08603538, -0.18038323],
-            [0.11843555,  0.10541066,  0.18890181, -0.47725168, -0.17614595],
-            [0.10635769,  0.27445756, -0.4092473,  -0.00541242, -0.16657992],
-            [0.33554969,  0.26429289,  0.25401103, -0.03982173,  0.03924669]
-        ]]
-    )
-
-    ct = smc.cnn_client_execute(x)
-    sk = smc.cnn_server_key_request(y)
-    dec = smc.cnn_server_execute(sk, ct, y)
-    print(dec)
-    print(np.sum(x * y))
-
+    ct = secure2pc_client.execute(x)
+    sk = secure2pc_server.request_key(y)
+    dec = secure2pc_server.execute(sk, ct, y)
+    logger.info('expected result %f' % np.sum(x * y))
+    logger.info('executed result %f' % dec)

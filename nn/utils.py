@@ -1,7 +1,6 @@
 import os
 import time
 import gzip
-
 from contextlib import contextmanager
 
 import numpy as np

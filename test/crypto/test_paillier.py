@@ -2,14 +2,9 @@
 import random
 import numpy as np
 import time
-
 import os
-parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-os.sys.path.insert(0,parentdir)
 
 from crypto.paillier import GeneralPaillier
-from keras.models import load_model
-
 
 
 debug = False
