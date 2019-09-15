@@ -105,4 +105,8 @@ def load_dlog_table_config(dlog_table_config_file):
         func_bound = store_dict['func_bound']
         g = gp.mpz(store_dict['g'])
 
-    return dlog_table, func_bound, g
+    return {
+        'dlog_table': dlog_table,
+        'func_bound': func_bound,
+        'g': g
+    }

@@ -12,7 +12,6 @@ Simple Single Input Functional Encryption
 :Date:      7/2019
 '''
 import math
-import json
 import logging
 
 import gmpy2 as gp
@@ -21,18 +20,18 @@ from crypto.utils import _random
 from crypto.utils import _random_generator
 from crypto.utils import _param_generator
 from crypto.utils import load_sec_param_config
-from crypto.utils import load_dlog_table_config
 
 logger = logging.getLogger(__name__)
 
 
 class SIFEDynamic:
-    def __init__(self, eta, sec_param=256, sec_param_config=None, dlog_table_config=None):
+    def __init__(self, eta, sec_param=256, sec_param_config=None, dlog=None):
         self.eta = eta
-        if sec_param_config is not None and dlog_table_config is not None:
+        if sec_param_config is not None and dlog is not None:
             self.p, self.q, self.r, self.g, self.sec_param = load_sec_param_config(sec_param_config)
-            self.dlog_table, self.func_bound, g = load_dlog_table_config(dlog_table_config)
-            assert g == self.g, 'g in dlog table does not match g in sec param'
+            self.dlog_table = dlog['dlog_table']
+            self.func_bound = dlog['func_bound']
+            assert dlog['g'] == self.g, 'g in dlog table does not match g in sec param'
         else:
             self.p, self.q, self.r = _param_generator(sec_param)
             self.g = _random_generator(sec_param, self.p, self.r)
@@ -196,10 +195,11 @@ class SIFEDynamicTPA(object):
 
 
 class SIFEDynamicClient(object):
-    def __init__(self, sec_param=256, role='dec', dlog_table_config=None):
+    def __init__(self, sec_param=256, role='dec', dlog=None):
         if role == 'dec' or role == 'both':
-            if dlog_table_config is not None:
-                self.dlog_table, self.func_bound, self.g = load_dlog_table_config(dlog_table_config)
+            if dlog is not None:
+                self.dlog_table = dlog['dlog_table']
+                self.func_bound = dlog['func_bound']
             else:
                 self.sec_param = sec_param
                 self.dlog_table = None

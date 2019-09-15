@@ -1,9 +1,8 @@
 import random
-import time
 import logging
-import numpy as np
 
 from nn.utils import timer
+from crypto.utils import load_dlog_table_config
 from crypto.sife_dynamic import SIFEDynamic
 from crypto.sife_dynamic import SIFEDynamicTPA
 from crypto.sife_dynamic import SIFEDynamicClient
@@ -51,9 +50,12 @@ def test_sife_basic_with_config():
     check_prod = sum(map(lambda i: x[i] * y[i], range(eta)))
     logger.debug('original dot product <x,y>: %d' % check_prod)
 
+    logger.info('loading dlog configuration ...')
+    with timer('load dlog config, cost time:', logger) as t:
+        dlog = load_dlog_table_config(dlog_table_config_file)
+    logger.info('load dlog configuration DONE')
     sife = SIFEDynamic(eta, sec_param=256,
-                       sec_param_config=sec_param_config_file,
-                       dlog_table_config=dlog_table_config_file)
+                       sec_param_config=sec_param_config_file, dlog=dlog)
     sife.setup()
 
     pk = sife.generate_public_key(len(x))
@@ -76,11 +78,15 @@ def test_sife_dynamic():
     check_prod = sum(map(lambda i: x[i] * y[i], range(eta)))
     logger.debug('original dot product <x,y>: %d' % check_prod)
 
+    logger.info('loading dlog configuration ...')
+    with timer('load dlog config, cost time:', logger) as t:
+        dlog = load_dlog_table_config(dlog_table_config_file)
+    logger.info('load dlog configuration DONE')
     sife_tpa = SIFEDynamicTPA(eta, sec_param=sec_param, sec_param_config=sec_param_config_file)
     sife_tpa.setup()
 
     sife_enc_client = SIFEDynamicClient(role='enc')
-    sife_dec_client = SIFEDynamicClient(role='dec', dlog_table_config=dlog_table_config_file)
+    sife_dec_client = SIFEDynamicClient(role='dec', dlog=dlog)
 
     pk = sife_tpa.generate_public_key(len(x))
     ct = sife_enc_client.encrypt(pk, x)
