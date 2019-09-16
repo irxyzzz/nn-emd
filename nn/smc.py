@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 class Secure2PCClient(object):
     def __init__(self, sife, precision):
-        self.crypto_tpa, self.sife_client = sife
+        self.sife_tpa, self.sife_client = sife
         self.precision = precision
 
     def execute(self, data_array):

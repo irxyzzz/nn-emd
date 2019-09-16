@@ -1,4 +1,3 @@
-import sys
 import datetime
 import logging
 
@@ -41,26 +40,23 @@ def test_nn_shallow_mnist():
     idx = np.random.permutation(X_data.shape[0])
     X_data, y_data = X_data[idx], y_data[idx]
 
-    total_mini_batches = 1000
+    total_mini_batches = 100
 
     nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=50,
-                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
-                               decrease_const=0.00001, mini_batches=total_mini_batches)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 64],
+                               l2=0.01, l1=0.0, epochs=20, eta=0.001, alpha=0.01,
+                               decrease_const=0.001, mini_batches=total_mini_batches)
 
     X_client, y_client = nn_client.pre_process(X_data, y_data)
-    train_lost_hist = nn_server.fit(X_client, y_client, print_progress=False)
-    print(train_lost_hist)
-
-    y_train_pred = nn_server.predict(X_train)
-    train_acc = np.sum(y_train == y_train_pred, axis=0) / X_train.shape[0]
-    print('Training accuracy: %.2f%%' % (train_acc * 100))
-
-    y_test_pred = nn_server.predict(X_test)
-    test_acc = np.sum(y_test == y_test_pred, axis=0) / X_test.shape[0]
-    print('Test accuracy: %.2f%%' % (test_acc * 100))
+    (train_loss_hist,
+     test_acc_hist,
+     train_batch_time_hist,
+     train_time_hist) = nn_server.fit(X_client, y_client, X_test, y_test)
+    logger.info('train loss: \n' + str(train_loss_hist))
+    logger.info('test acc: \n' + str(test_acc_hist))
 
 def test_nn_shallow_mnist_smc():
+    logger.info('test nn shallow mnist with secure 2pc setting')
     logger.info('initialize the crypto system ...')
     sec_param_config_file = 'config/sec_param.json'  # indicate kernel size 5
     dlog_table_config_file = 'config/dlog_b8.json'
@@ -78,38 +74,38 @@ def test_nn_shallow_mnist_smc():
     precision_data = 0
     precision_weight = 3
 
-    secure2pc_client = Secure2PCClient(crypto=(sife_tpa, sife_enc_client), precision=precision_data)
-    secure2pc_server = Secure2PCServer(crypto=(sife_tpa, sife_dec_client), precision=(precision_data, precision_weight))
+    secure2pc_client = Secure2PCClient(sife=(sife_tpa, sife_enc_client), precision=precision_data)
+    secure2pc_server = Secure2PCServer(sife=(sife_tpa, sife_dec_client), precision=(precision_data, precision_weight))
 
     X_train, y_train = load_mnist_size('datasets/mnist', size=600)
     X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
     # X_train, y_train = load_mnist('datasets/mnist')
     # X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
+
     # shuffle
     X_data, y_data = X_train.copy(), y_train.copy()
     idx = np.random.permutation(X_data.shape[0])
     X_data, y_data = X_data[idx], y_data[idx]
 
-    nn_client = CryptoNNClient(n_output=10, mini_batches=50, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=50,
+    total_mini_batches = 10
+
+    nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
                                l2=0.1, l1=0.0, epochs=2, eta=0.001, alpha=0.001,
-                               decrease_const=0.00001, mini_batches=50, smc=secure2pc_server)
+                               decrease_const=0.001, mini_batches=total_mini_batches, smc=secure2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
     logger.info('client encrypting DONE')
     logger.info('server start to train ...')
-    train_lost_hist = nn_server.fit((ct_feedforward_lst, ct_backpropagation_lst), y_onehot_lst, print_progress=True)
+    with timer('training using secure2pc setting - 10 batches', logger) as t:
+        (train_loss_hist,
+         test_acc_hist,
+        train_batch_time_hist,
+        train_time_hist) = nn_server.fit((ct_feedforward_lst, ct_backpropagation_lst), y_onehot_lst, X_test, y_test)
     logger.info('server training DONE')
 
-    y_train_pred = nn_server.predict(X_train)
-    train_acc = np.sum(y_train == y_train_pred, axis=0) / X_train.shape[0]
-    print('Training accuracy: %.2f%%' % (train_acc * 100))
-    logging.info('Training accuracy: %.2f%%' % (train_acc * 100))
-
-    y_test_pred = nn_server.predict(X_test)
-    test_acc = np.sum(y_test == y_test_pred, axis=0) / X_test.shape[0]
-    print('Test accuracy: %.2f%%' % (test_acc * 100))
-    logging.info('Test accuracy: %.2f%%' % (test_acc * 100))
+    logger.info('training loss: \n\r' + str(train_loss_hist))
+    logger.info('test acc: \n\r' + str(test_acc_hist))
 
 def test_nn_shallow_mnist_smc_enhanced():
     logger.info('test nn shallow in mnist using enhanced smc')
@@ -141,7 +137,7 @@ def test_nn_shallow_mnist_smc_enhanced():
         logger.info('the crypto system initialization done!')
 
     precision_data = 0
-    precision_weight = 3
+    precision_weight = 4
 
     es2pc_client = EnhancedSecure2PCClient(
         sife=(sife_tpa, sife_enc_client),
@@ -152,25 +148,24 @@ def test_nn_shallow_mnist_smc_enhanced():
         mife=(mife_tpa, mife_dec_client),
         precision=(precision_data, precision_weight))
 
-    # X_train, y_train = load_mnist_size('datasets/mnist', size=600)
-    # X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
-    X_train, y_train = load_mnist('datasets/mnist')
-    X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
+    X_train, y_train = load_mnist_size('datasets/mnist', size=600)
+    X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
+    # X_train, y_train = load_mnist('datasets/mnist')
+    # X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
 
     # shuffle
     X_data, y_data = X_train.copy(), y_train.copy()
     idx = np.random.permutation(X_data.shape[0])
     X_data, y_data = X_data[idx], y_data[idx]
 
-
     features_splits = np.array_split(range(X_data.shape[1]), len(setup_parties))
     X_data_lst = [X_data[:, idx] for idx in features_splits]
 
-    total_mini_batches = 50
+    total_mini_batches = 10
 
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=50,
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
                                l2=0.1, l1=0.0, epochs=2, eta=0.001, alpha=0.001,
-                               decrease_const=0.00001, mini_batches=total_mini_batches, smc=es2pc_server)
+                               decrease_const=0.001, mini_batches=total_mini_batches, smc=es2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_ff_lst_dict = dict()
     ct_bp_lst_dict = dict()
@@ -198,15 +193,60 @@ def test_nn_shallow_mnist_smc_enhanced():
     logger.info('client encrypting DONE')
 
     logger.info('server start to train ...')
-    train_lost_hist = nn_server.fit((ct_ff_lst_dict, ct_bp_lst_dict), final_y_onehot_lst, print_progress=True)
+    (train_loss_hist,
+     test_acc_hist,
+     train_batch_time_hist,
+     train_time_hist) = nn_server.fit((ct_ff_lst_dict, ct_bp_lst_dict), final_y_onehot_lst, X_test, y_test)
     logger.info('server training DONE')
 
-    y_train_pred = nn_server.predict(X_train)
-    train_acc = np.sum(y_train == y_train_pred, axis=0) / X_train.shape[0]
-    print('Training accuracy: %.2f%%' % (train_acc * 100))
-    logging.info('Training accuracy: %.2f%%' % (train_acc * 100))
+    logger.info('training loss: \n\r' + str(train_loss_hist))
+    logger.info('test acc: \n\r' + str(test_acc_hist))
 
-    y_test_pred = nn_server.predict(X_test)
-    test_acc = np.sum(y_test == y_test_pred, axis=0) / X_test.shape[0]
-    print('Test accuracy: %.2f%%' % (test_acc * 100))
-    logging.info('Test accuracy: %.2f%%' % (test_acc * 100))
+def test_nn_shallow_mnist_smc_cryptonn():
+    logger.info('test nn shallow mnist with secure 2pc setting')
+    logger.info('initialize the crypto system ...')
+
+    eta = 1250
+    sec_param = 256
+
+    sife_tpa = SIFEDynamicTPA(eta, sec_param=sec_param)
+    sife_tpa.setup()
+    sife_enc_client = SIFEDynamicClient(role='enc')
+    sife_dec_client = SIFEDynamicClient(role='dec')
+    logger.info('the crypto system initialization done!')
+
+    precision_data = 0
+    precision_weight = 4
+
+    secure2pc_client = Secure2PCClient(sife=(sife_tpa, sife_enc_client), precision=precision_data)
+    secure2pc_server = Secure2PCServer(sife=(sife_tpa, sife_dec_client), precision=(precision_data, precision_weight))
+
+    X_train, y_train = load_mnist_size('datasets/mnist', size=60)
+    X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
+    # X_train, y_train = load_mnist('datasets/mnist')
+    # X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
+
+    # shuffle
+    X_data, y_data = X_train.copy(), y_train.copy()
+    idx = np.random.permutation(X_data.shape[0])
+    X_data, y_data = X_data[idx], y_data[idx]
+
+    total_mini_batches = 1
+
+    nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
+                               l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
+                               decrease_const=0.001, mini_batches=total_mini_batches, smc=secure2pc_server)
+    logger.info('client start to encrypt dataset ...')
+    ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
+    logger.info('client encrypting DONE')
+    logger.info('server start to train ...')
+    with timer('training using secure2pc setting - 1 batches', logger) as t:
+        (train_loss_hist,
+         test_acc_hist,
+         train_batch_time_hist,
+         train_time_hist) = nn_server.fit((ct_feedforward_lst, ct_backpropagation_lst), y_onehot_lst, X_test, y_test)
+    logger.info('server training DONE')
+
+    logger.info('training loss: \n\r' + str(train_loss_hist))
+    logger.info('test acc: \n\r' + str(test_acc_hist))

@@ -1,6 +1,7 @@
 import abc
 import six
 import logging
+import time
 
 import numpy as np
 
@@ -83,7 +84,7 @@ class CryptoNNServer(object):
         self.n_output = n_output
         self.n_features = n_features
         self.n_hidden = n_hidden
-        self.w1, self.w2 = self._initialize_weights()
+        self.w1, self.w2, self.w3 = self._initialize_weights()
         self.l1 = l1
         self.l2 = l2
         self.epochs = epochs
@@ -98,11 +99,13 @@ class CryptoNNServer(object):
         self.parties[party.get_id()] = party.get_features_size()
 
     def _initialize_weights(self):
-        w1 = np.random.uniform(-1.0, 1.0, size=self.n_hidden*(self.n_features + 1))
-        w1 = w1.reshape(self.n_hidden, self.n_features + 1)
-        w2 = np.random.uniform(-1.0, 1.0, size=self.n_output*(self.n_hidden + 1))
-        w2 = w2.reshape(self.n_output, self.n_hidden + 1)
-        return w1, w2
+        w1 = np.random.uniform(-1.0, 1.0, size=self.n_hidden[0]*(self.n_features + 1))
+        w1 = w1.reshape(self.n_hidden[0], self.n_features + 1)
+        w2 = np.random.uniform(-1.0, 1.0, size=self.n_hidden[1]*(self.n_hidden[0] + 1))
+        w2 = w2.reshape(self.n_hidden[1], self.n_hidden[0] + 1)
+        w3 = np.random.uniform(-1.0, 1.0, size=self.n_output*(self.n_hidden[1] + 1))
+        w3 = w3.reshape(self.n_output, self.n_hidden[1] + 1)
+        return w1, w2, w3
 
     def _sigmoid(self, z):
         return 1.0 / (1.0 + np.exp(-z))
@@ -123,15 +126,18 @@ class CryptoNNServer(object):
             raise AttributeError('`how` must be `column` or `row`')
         return X_new
 
-    def _feedforward(self, X, w1, w2):
+    def _feedforward(self, X, w1, w2, w3):
         z2 = w1.dot(X.T)
         a2 = self._sigmoid(z2)
         a2 = self._add_bias_unit(a2, how='row')
         z3 = w2.dot(a2)
         a3 = self._sigmoid(z3)
-        return z2, a2, z3, a3
+        a3 = self._add_bias_unit(a3, how='row')
+        z4 = w3.dot(a3)
+        a4 = self._sigmoid(z4)
+        return z2, a2, z3, a3, z4, a4
 
-    def _feedforward_secure(self, ct_batch, w1, w2):
+    def _feedforward_secure(self, ct_batch, w1, w2, w3):
         # simulate the smc
         if isinstance(self.smc, Secure2PCServer):
             sk_w1 = self.smc.request_key_ndarray(w1)
@@ -144,20 +150,23 @@ class CryptoNNServer(object):
         a2 = self._add_bias_unit(a2, how='row')
         z3 = w2.dot(a2)
         a3 = self._sigmoid(z3)
-        return z2, a2, z3, a3
+        a3 = self._add_bias_unit(a3, how='row')
+        z4 = w3.dot(a3)
+        a4 = self._sigmoid(z4)
+        return z2, a2, z3, a3, z4, a4
 
-    def _L2_reg(self, lambda_, w1, w2):
-        return (lambda_/2.0) * (np.sum(w1[:, 1:] ** 2) + np.sum(w2[:, 1:] ** 2))
+    def _L2_reg(self, lambda_, w1, w2, w3):
+        return (lambda_/2.0) * (np.sum(w1[:, 1:] ** 2) + np.sum(w2[:, 1:] ** 2) + np.sum(w3[:, 1:] ** 2))
 
-    def _L1_reg(self, lambda_, w1, w2):
-        return (lambda_/2.0) * (np.abs(w1[:, 1:]).sum() + np.abs(w2[:, 1:]).sum())
+    def _L1_reg(self, lambda_, w1, w2, w3):
+        return (lambda_/2.0) * (np.abs(w1[:, 1:]).sum() + np.abs(w2[:, 1:]).sum() + np.abs(w3[:, 1:]).sum())
 
-    def _get_cost(self, y_encode, output, w1, w2):
+    def _get_cost(self, y_encode, output, w1, w2, w3):
         term1 = - y_encode * (np.log(output))
         term2 = (1.0 - y_encode) * np.log(1.0 - output)
         cost = np.sum(term1 - term2)
-        L1_term = self._L1_reg(self.l1, w1, w2)
-        L2_term = self._L2_reg(self.l2, w1, w2)
+        L1_term = self._L1_reg(self.l1, w1, w2, w3)
+        L2_term = self._L2_reg(self.l2, w1, w2, w3)
         cost = cost + L1_term + L2_term
         return cost
 
@@ -169,25 +178,34 @@ class CryptoNNServer(object):
         assert (cost.shape == ())
         return cost
 
-    def _get_gradient(self, a1, a2, a3, z2, y_encode, w1, w2):
+    def _get_gradient(self, a1, a2, a3, a4, z2, z3, y_encode, w1, w2, w3):
         # back-propagation
-        sigma3 = a3 - y_encode
+        sigma4 = a4 - y_encode
+        z3 = self._add_bias_unit(z3, how='row')
+        sigma3 = w3.T.dot(sigma4) * self._sigmoid_gradient(z3)
+        sigma3 = sigma3[1:, :]
         z2 = self._add_bias_unit(z2, how='row')
         sigma2 = w2.T.dot(sigma3) * self._sigmoid_gradient(z2)
         sigma2 = sigma2[1:, :]
         grad1 = sigma2.dot(a1)
         grad2 = sigma3.dot(a2.T)
+        grad3 = sigma4.dot(a3.T)
 
         # regularize
         grad1[:, 1:] += self.l2 * w1[:, 1:]
         grad1[:, 1:] += self.l1 * np.sign(w1[:, 1:])
         grad2[:, 1:] += self.l2 * w2[:, 1:]
         grad2[:, 1:] += self.l1 * np.sign(w2[:, 1:])
+        grad3[:, 1:] += self.l2 * w3[:, 1:]
+        grad3[:, 1:] += self.l1 * np.sign(w3[:, 1:])
 
-        return grad1, grad2
+        return grad1, grad2, grad3
 
-    def _get_gradient_secure(self, ct_batch, a2, a3, z2, y_encode, w1, w2):
-        sigma3 = a3 - y_encode
+    def _get_gradient_secure(self, ct_batch, a2, a3, a4, z2, z3, y_encode, w1, w2, w3):
+        sigma4 = a4 - y_encode
+        z3 = self._add_bias_unit(z3, how='row')
+        sigma3 = w3.T.dot(sigma4) * self._sigmoid_gradient(z3)
+        sigma3 = sigma3[1:, :]
         z2 = self._add_bias_unit(z2, how='row')
         sigma2 = w2.T.dot(sigma3) * self._sigmoid_gradient(z2)
         sigma2 = sigma2[1:, :]
@@ -201,14 +219,17 @@ class CryptoNNServer(object):
             grad1 = self.smc.execute_ndarray(sk_sigma2, ct_batch, sigma2, {'type': 'sife'})
         # end of smc
         grad2 = sigma3.dot(a2.T)
+        grad3 = sigma4.dot(a3.T)
 
         # regularize
         grad1[:, 1:] += self.l2 * w1[:, 1:]
         grad1[:, 1:] += self.l1 * np.sign(w1[:, 1:])
         grad2[:, 1:] += self.l2 * w2[:, 1:]
         grad2[:, 1:] += self.l1 * np.sign(w2[:, 1:])
+        grad3[:, 1:] += self.l2 * w3[:, 1:]
+        grad3[:, 1:] += self.l1 * np.sign(w3[:, 1:])
 
-        return grad1, grad2
+        return grad1, grad2, grad3
 
     def predict(self, X):
         if len(X.shape) != 2:
@@ -216,16 +237,21 @@ class CryptoNNServer(object):
                                  'Use X[:,None] for 1-feature classification,'
                                  '\nor X[[i]] for 1-sample classification')
         X = self._add_bias_unit(X, how='column')
-        z2, a2, z3, a3 = self._feedforward(X, self.w1, self.w2)
-        y_pred = np.argmax(z3, axis=0)
+        z2, a2, z3, a3, z4, a4 = self._feedforward(X, self.w1, self.w2, self.w3)
+        y_pred = np.argmax(z4, axis=0)
         return y_pred
 
-    def fit(self, x, y, print_progress=False):
+    def fit(self, x, y, x_test, y_test, print_progress=False):
         train_loss_hist = list()
+        test_acc_hist = list()
+        train_time_hist = list()
+        train_batch_time_hist = list()
 
         delta_w1_prev = np.zeros(self.w1.shape)
         delta_w2_prev = np.zeros(self.w2.shape)
+        delta_w3_prev = np.zeros(self.w3.shape)
 
+        start_time = time.perf_counter()
         for epoch in range(self.epochs):
             logger.info('Epoch: %d/%d start ... ' % (epoch + 1, self.epochs))
             if print_progress:
@@ -233,15 +259,15 @@ class CryptoNNServer(object):
             # adaptive learning rate
             self.eta /= (1 + self.decrease_const*epoch)
 
+            cost = 0.0
             for i in range(len(y)):
                 # feedforward
                 if self.smc:
                     if isinstance(self.smc, Secure2PCServer):
-                        z2, a2, z3, a3 = self._feedforward_secure(x[0][i], self.w1, self.w2)
-                        cost = self._get_cost(y_encode=y[i], output=a3, w1=self.w1, w2=self.w2)
-                        train_loss_hist.append(cost)
-                        grad1, grad2 = self._get_gradient_secure(ct_batch=x[1][i], a2=a2, a3=a3, z2=z2,
-                                                                 y_encode=y[i], w1=self.w1, w2=self.w2)
+                        z2, a2, z3, a3, z4, a4 = self._feedforward_secure(x[0][i], self.w1, self.w2, self.w3)
+                        cost += self._get_cost(y_encode=y[i], output=a4, w1=self.w1, w2=self.w2, w3=self.w3)
+                        grad1, grad2, grad3 = self._get_gradient_secure(ct_batch=x[1][i], a2=a2, a3=a3, a4=a4, z2=z2, z3=z3,
+                                                                 y_encode=y[i], w1=self.w1, w2=self.w2, w3=self.w3)
                     elif isinstance(self.smc, EnhancedSecure2PCServer):
                         # fuse the mife cts of one batch from multiple parties
                         batch_size = y[i].shape[1]
@@ -258,22 +284,28 @@ class CryptoNNServer(object):
                         for id in self.parties.keys():
                             ct_bp_batch_lst = ct_bp_batch_lst + x[1][id][i].tolist()
 
-                        z2, a2, z3, a3 = self._feedforward_secure(ct_ff_batch_lst, self.w1, self.w2)
-                        cost = self._get_cost(y_encode=y[i], output=a3, w1=self.w1, w2=self.w2)
-                        train_loss_hist.append(cost)
-                        grad1, grad2 = self._get_gradient_secure(ct_batch=ct_bp_batch_lst, a2=a2, a3=a3, z2=z2,
-                                                                 y_encode=y[i], w1=self.w1, w2=self.w2)
+                        z2, a2, z3, a3, z4, a4 = self._feedforward_secure(ct_ff_batch_lst, self.w1, self.w2, self.w3)
+                        cost += self._get_cost(y_encode=y[i], output=a4, w1=self.w1, w2=self.w2, w3=self.w3)
+                        grad1, grad2, grad3 = self._get_gradient_secure(ct_batch=ct_bp_batch_lst, a2=a2, a3=a3, a4=a4, z2=z2, z3=z3,
+                                                                 y_encode=y[i], w1=self.w1, w2=self.w2, w3=self.w3)
                 else:
-                    z2, a2, z3, a3 = self._feedforward(x[i], self.w1, self.w2)
-                    cost = self._get_cost(y_encode=y[i], output=a3, w1=self.w1, w2=self.w2)
-                    train_loss_hist.append(cost)
-                    grad1, grad2 = self._get_gradient(a1=x[i], a2=a2, a3=a3, z2=z2,
-                                                      y_encode=y[i], w1=self.w1, w2=self.w2)
+                    z2, a2, z3, a3, z4, a4 = self._feedforward(x[i], self.w1, self.w2, self.w3)
+                    cost += self._get_cost(y_encode=y[i], output=a4, w1=self.w1, w2=self.w2, w3=self.w3)
+                    grad1, grad2, grad3 = self._get_gradient(a1=x[i], a2=a2, a3=a3, a4=a4, z2=z2, z3=z3,
+                                                      y_encode=y[i], w1=self.w1, w2=self.w2, w3=self.w3)
 
-                delta_w1, delta_w2 = self.eta * grad1, self.eta * grad2
+                delta_w1, delta_w2, delta_w3 = self.eta * grad1, self.eta * grad2, self.eta * grad3
                 self.w1 -= (delta_w1 + (self.alpha * delta_w1_prev))
                 self.w2 -= (delta_w2 + (self.alpha * delta_w2_prev))
-                delta_w1_prev, delta_w2_prev = delta_w1, delta_w2
+                self.w3 -= (delta_w3 + (self.alpha * delta_w3_prev))
+                delta_w1_prev, delta_w2_prev, delta_w3_prev = delta_w1, delta_w2, delta_w3
 
-            logger.info('Epoch: %d/%d Done' % (epoch + 1, self.epochs))
-        return train_loss_hist
+                train_batch_time_hist.append(time.perf_counter() - start_time)
+
+            y_test_pred = self.predict(x_test)
+            test_acc = np.sum(y_test == y_test_pred, axis=0) / x_test.shape[0]
+            test_acc_hist.append(test_acc)
+            train_loss_hist.append(cost/len(y))
+            train_time_hist.append(time.perf_counter() - start_time)
+            logger.info('Epoch: %d/%d done - train loss %.2f - test acc %.2f%%' % (epoch + 1, self.epochs, cost/len(y), test_acc * 100))
+        return train_loss_hist, test_acc_hist, train_batch_time_hist, train_time_hist
