@@ -660,6 +660,62 @@ def test_exp_nn_shallow_acc_simulate():
     logger.info('test_acc_hist_base: \n\r' + str(test_acc_hist))
 
 
+def test_exp_nn_shallow_acc_cmp_simulate():
+    logger.info('experiment for accuracy for full MNIST in simulation way')
+
+    precision_weight_lst = [4, 5]
+
+    # X_train, y_train = load_mnist_size('datasets/mnist', size=150)
+    # X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
+    X_train, y_train = load_mnist('datasets/mnist')
+    X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
+
+    # shuffle
+    X_data, y_data = X_train.copy(), y_train.copy()
+    idx = np.random.permutation(X_data.shape[0])
+    X_data, y_data = X_data[idx], y_data[idx]
+
+    total_mini_batches = 100
+    epochs = 100
+    test_acc_hist = list()
+
+    for precision in precision_weight_lst:
+        nn_client_base = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
+        nn_server_base = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[512, 256, 128, 64, 32],
+                                        l2=0.1, l1=0.0, epochs=epochs, eta=0.001, alpha=0.001,
+                                        decrease_const=0.0001, mini_batches=total_mini_batches, precision=precision)
+        logger.info('client start to pre-process ...')
+        with timer('client pre-process', logger) as t:
+            X_client, y_client = nn_client_base.pre_process(X_data, y_data)
+        logger.info('client pre-process DONE')
+        logger.info('server start to train ... with precision ' + str(precision))
+        (train_loss_hist_base,
+         test_acc_hist_base,
+         train_batch_time_hist_base,
+         train_time_hist_base) = nn_server_base.fit(X_client, y_client, X_test, y_test)
+        logger.info('server training DONE')
+        test_acc_hist.append(test_acc_hist_base)
+
+    nn_client_base = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1],
+                                    random_seed=520)
+    nn_server_base = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[512, 256, 128, 64, 32],
+                                    l2=0.1, l1=0.0, epochs=epochs, eta=0.001, alpha=0.001,
+                                    decrease_const=0.0001, mini_batches=total_mini_batches)
+    logger.info('base client start to pre-process ...')
+    with timer('base client pre-process', logger) as t:
+        X_client, y_client = nn_client_base.pre_process(X_data, y_data)
+    logger.info('base client pre-process DONE')
+    logger.info('base server start to train ... ')
+    (train_loss_hist_base,
+     test_acc_hist_base,
+     train_batch_time_hist_base,
+     train_time_hist_base) = nn_server_base.fit(X_client, y_client, X_test, y_test)
+    logger.info('base server training DONE')
+    test_acc_hist.append(test_acc_hist_base)
+
+    logger.info('test_acc_hist_base: \n\r' + str(test_acc_hist))
+
+
 
 
 

@@ -47,6 +47,23 @@ def test_draw_acc_diff_precision():
                 "Precision 9",))
     plt.savefig('experiment/res/acc_diff_precision.eps')
 
+def test_draw_acc_cmp():
+    acc_precision_lst = []
+    with open('logs/acc_cmp_v2.log', 'r') as infile:
+        last_line_str = infile.readlines()[-1]
+        acc_precision_lst = json.loads(last_line_str)
+    x = [i for i in range(1, 101)]
+    for y in acc_precision_lst:
+        plt.plot(x, y)
+    plt.xlabel("# iterations")
+    # plt.xticks(s2pc_cost_time, ['5', '10', '15', '20', '25', '30'])
+    plt.ylabel("accuracy")
+    # plt.title("training time of one mini-batch for different hidden layers")
+    plt.legend(("NN-MEDS(HPT)",
+                "NN-MEDS(VPT)",
+                "Normal-NN(Baseline)",))
+    plt.savefig('experiment/res/acc_cmp.eps')
+
 
 def test_draw_test_acc():
     test_acc_hist_base = None

@@ -44,7 +44,7 @@ def _json_zip(store_dict):
 
 def _json_unzip(content):
     try:
-        dec_compress = zlib.decompress(base64.b64decode(content))
+        dec_compress = zlib.decompress(base64.b64decode(content.encode('ascii'))).decode('utf-8')
     except Exception:
         raise RuntimeError("Could not decode/unzip the contents")
     try:

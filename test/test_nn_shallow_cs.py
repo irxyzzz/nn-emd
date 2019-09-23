@@ -91,7 +91,7 @@ def test_nn_shallow_mnist_smc():
 
     nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
     nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
-                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                               l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
                                decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
