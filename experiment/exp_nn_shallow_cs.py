@@ -15,6 +15,7 @@ from nn.smc import Secure2PCServer
 from nn.smc import EnhancedSecure2PCClient
 from nn.smc import EnhancedSecure2PCServer
 from crypto.utils import load_dlog_table_config
+from crypto.utils import generate_config_files
 from crypto.sife_dynamic import SIFEDynamicTPA
 from crypto.sife_dynamic import SIFEDynamicClient
 from crypto.mife_dynamic import MIFEDynamicTPA
@@ -28,6 +29,14 @@ logging.basicConfig(
     filename="logs/" + __name__ + '-' + '-'.join(t_str.split()[:1] + t_str.split()[1].split(':')[:2]) + '.log',
     filemode='w')
 logger = logging.getLogger(__name__)
+
+def test_generate_config_files():
+    logger.info('testing generating config files')
+    func_value_bound = 100000000
+    sec_param = 256
+    sec_param_config_file = 'config/sec_param.json'
+    dlog_table_config_file = 'config/dlog_b8.json'
+    generate_config_files(sec_param, sec_param_config_file, dlog_table_config_file, func_value_bound)
 
 
 def test_exp_time_one_batch():
