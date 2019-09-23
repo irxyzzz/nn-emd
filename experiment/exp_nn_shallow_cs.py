@@ -100,7 +100,7 @@ def test_exp_time_one_batch():
         nn_server.fit((ct_feedforward_lst, ct_backpropagation_lst), y_onehot_lst, X_test, y_test)
     logger.info('secure2pc setting: server training DONE')
 
-    nn_server_enhanced = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
+    nn_server_enhanced = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[128, 32],
                                         l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.01,
                                         decrease_const=0.001, mini_batches=total_mini_batches, smc=es2pc_server)
     logger.info('enhanced secure2pc setting: client start to encrypt dataset ...')
