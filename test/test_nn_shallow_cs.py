@@ -43,9 +43,9 @@ def test_nn_shallow_mnist():
     total_mini_batches = 100
 
     nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 64],
-                               l2=0.01, l1=0.0, epochs=20, eta=0.001, alpha=0.01,
-                               decrease_const=0.001, mini_batches=total_mini_batches)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                               decrease_const=0.0001, mini_batches=total_mini_batches)
 
     X_client, y_client = nn_client.pre_process(X_data, y_data)
     (train_loss_hist,
@@ -87,12 +87,12 @@ def test_nn_shallow_mnist_smc():
     idx = np.random.permutation(X_data.shape[0])
     X_data, y_data = X_data[idx], y_data[idx]
 
-    total_mini_batches = 10
+    total_mini_batches = 50
 
     nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
-                               l2=0.1, l1=0.0, epochs=2, eta=0.001, alpha=0.001,
-                               decrease_const=0.001, mini_batches=total_mini_batches, smc=secure2pc_server)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                               decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
     logger.info('client encrypting DONE')
@@ -161,11 +161,11 @@ def test_nn_shallow_mnist_smc_enhanced():
     features_splits = np.array_split(range(X_data.shape[1]), len(setup_parties))
     X_data_lst = [X_data[:, idx] for idx in features_splits]
 
-    total_mini_batches = 10
+    total_mini_batches = 50
 
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
-                               l2=0.1, l1=0.0, epochs=2, eta=0.001, alpha=0.001,
-                               decrease_const=0.001, mini_batches=total_mini_batches, smc=es2pc_server)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                               decrease_const=0.0001, mini_batches=total_mini_batches, smc=es2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_ff_lst_dict = dict()
     ct_bp_lst_dict = dict()
@@ -234,9 +234,9 @@ def test_nn_shallow_mnist_smc_cryptonn():
     total_mini_batches = 1
 
     nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], n_hidden=[128, 32],
-                               l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
-                               decrease_const=0.001, mini_batches=total_mini_batches, smc=secure2pc_server)
+    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                               decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
     logger.info('client encrypting DONE')

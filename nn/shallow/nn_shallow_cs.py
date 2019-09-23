@@ -75,16 +75,17 @@ class CryptoNNClient(object):
             else:
                 return X_data_lst
 
+
 @six.add_metaclass(abc.ABCMeta)
 class CryptoNNServer(object):
-    def __init__(self, n_output, n_features, n_hidden=30,
+    def __init__(self, n_output, n_features, hidden_layers,
                  l1=0.0, l2=0.0, epochs=500, eta=0.001,
                  alpha=0.0, decrease_const=0.0,
-                 mini_batches=1, smc=None):
+                 mini_batches=1, smc=None, precision=None):
         self.n_output = n_output
         self.n_features = n_features
-        self.n_hidden = n_hidden
-        self.w1, self.w2, self.w3 = self._initialize_weights()
+        self.hidden_layers = hidden_layers
+        self.w = self._initialize_weights()
         self.l1 = l1
         self.l2 = l2
         self.epochs = epochs
@@ -93,19 +94,16 @@ class CryptoNNServer(object):
         self.decrease_const = decrease_const
         self.mini_batches = mini_batches
         self.smc = smc
+        self.precision = precision
         self.parties = dict()
 
     def register(self, party):
         self.parties[party.get_id()] = party.get_features_size()
 
     def _initialize_weights(self):
-        w1 = np.random.uniform(-1.0, 1.0, size=self.n_hidden[0]*(self.n_features + 1))
-        w1 = w1.reshape(self.n_hidden[0], self.n_features + 1)
-        w2 = np.random.uniform(-1.0, 1.0, size=self.n_hidden[1]*(self.n_hidden[0] + 1))
-        w2 = w2.reshape(self.n_hidden[1], self.n_hidden[0] + 1)
-        w3 = np.random.uniform(-1.0, 1.0, size=self.n_output*(self.n_hidden[1] + 1))
-        w3 = w3.reshape(self.n_output, self.n_hidden[1] + 1)
-        return w1, w2, w3
+        self.layers = [self.n_features] + self.hidden_layers + [self.n_output]
+        w = [np.random.uniform(-1.0, 1.0, (self.layers[i+1], self.layers[i] + 1)) for i in range(len(self.layers) - 1)]
+        return w
 
     def _sigmoid(self, z):
         return 1.0 / (1.0 + np.exp(-z))
@@ -126,47 +124,62 @@ class CryptoNNServer(object):
             raise AttributeError('`how` must be `column` or `row`')
         return X_new
 
-    def _feedforward(self, X, w1, w2, w3):
-        z2 = w1.dot(X.T)
-        a2 = self._sigmoid(z2)
-        a2 = self._add_bias_unit(a2, how='row')
-        z3 = w2.dot(a2)
-        a3 = self._sigmoid(z3)
-        a3 = self._add_bias_unit(a3, how='row')
-        z4 = w3.dot(a3)
-        a4 = self._sigmoid(z4)
-        return z2, a2, z3, a3, z4, a4
+    def _feedforward(self, X, w):
+        z = [None for i in range(len(w))]
+        a = [None for i in range(len(w))]
+        if self.precision:
+            z[0] = (w[0]*pow(10, self.precision)).astype(int).dot(X.T) / pow(10, self.precision)
+        else:
+            z[0] = w[0].dot(X.T)
+        a[0] = self._add_bias_unit(self._sigmoid(z[0]), how='row')
+        for i in range(1, len(w)):
+            z[i] = w[i].dot(a[i-1])
+            if i != len(w) - 1:
+                a[i] = self._add_bias_unit(self._sigmoid(z[i]), how='row')
+            else:
+                a[i] = self._sigmoid(z[i])
+        return z, a
 
-    def _feedforward_secure(self, ct_batch, w1, w2, w3):
+    def _feedforward_secure(self, ct_batch, w):
+        z = [None for i in range(len(w))]
+        a = [None for i in range(len(w))]
+
         # simulate the smc
         if isinstance(self.smc, Secure2PCServer):
-            sk_w1 = self.smc.request_key_ndarray(w1)
-            z2 = self.smc.execute_ndarray(sk_w1, ct_batch.tolist(), w1)
+            sk_w0 = self.smc.request_key_ndarray(w[0])
+            z[0] = self.smc.execute_ndarray(sk_w0, ct_batch.tolist(), w[0])
         elif isinstance(self.smc, EnhancedSecure2PCServer):
-            sk_w1 = self.smc.request_key_ndarray(w1, {'type': 'mife', 'parties': self.parties})
-            z2 = self.smc.execute_ndarray(sk_w1, ct_batch, w1, {'type': 'mife'})
+            sk_w0 = self.smc.request_key_ndarray(w[0], {'type': 'mife', 'parties': self.parties})
+            z[0] = self.smc.execute_ndarray(sk_w0, ct_batch, w[0], {'type': 'mife'})
         # end of smc
-        a2 = self._sigmoid(z2)
-        a2 = self._add_bias_unit(a2, how='row')
-        z3 = w2.dot(a2)
-        a3 = self._sigmoid(z3)
-        a3 = self._add_bias_unit(a3, how='row')
-        z4 = w3.dot(a3)
-        a4 = self._sigmoid(z4)
-        return z2, a2, z3, a3, z4, a4
+        a[0] = self._add_bias_unit(self._sigmoid(z[0]), how='row')
 
-    def _L2_reg(self, lambda_, w1, w2, w3):
-        return (lambda_/2.0) * (np.sum(w1[:, 1:] ** 2) + np.sum(w2[:, 1:] ** 2) + np.sum(w3[:, 1:] ** 2))
+        for i in range(1, len(w)):
+            z[i] = w[i].dot(a[i - 1])
+            if i != len(w) - 1:
+                a[i] = self._add_bias_unit(self._sigmoid(z[i]), how='row')
+            else:
+                a[i] = self._sigmoid(z[i])
+        return z, a
 
-    def _L1_reg(self, lambda_, w1, w2, w3):
-        return (lambda_/2.0) * (np.abs(w1[:, 1:]).sum() + np.abs(w2[:, 1:]).sum() + np.abs(w3[:, 1:]).sum())
+    def _L2_reg(self, lambda_, w):
+        res = 0.0
+        for i in range(len(w)):
+            res += np.sum(w[i][:, 1:] ** 2)
+        return (lambda_/2.0) * res
 
-    def _get_cost(self, y_encode, output, w1, w2, w3):
+    def _L1_reg(self, lambda_, w):
+        res = 0.0
+        for i in range(len(w)):
+            res += np.abs(w[i][:, 1:]).sum()
+        return (lambda_/2.0) * res
+
+    def _get_cost(self, y_encode, output, w):
         term1 = - y_encode * (np.log(output))
         term2 = (1.0 - y_encode) * np.log(1.0 - output)
         cost = np.sum(term1 - term2)
-        L1_term = self._L1_reg(self.l1, w1, w2, w3)
-        L2_term = self._L2_reg(self.l2, w1, w2, w3)
+        L1_term = self._L1_reg(self.l1, w)
+        L2_term = self._L2_reg(self.l2, w)
         cost = cost + L1_term + L2_term
         return cost
 
@@ -178,58 +191,54 @@ class CryptoNNServer(object):
         assert (cost.shape == ())
         return cost
 
-    def _get_gradient(self, a1, a2, a3, a4, z2, z3, y_encode, w1, w2, w3):
+    def _get_gradient(self, x, y_encode, a, z, w):
         # back-propagation
-        sigma4 = a4 - y_encode
-        z3 = self._add_bias_unit(z3, how='row')
-        sigma3 = w3.T.dot(sigma4) * self._sigmoid_gradient(z3)
-        sigma3 = sigma3[1:, :]
-        z2 = self._add_bias_unit(z2, how='row')
-        sigma2 = w2.T.dot(sigma3) * self._sigmoid_gradient(z2)
-        sigma2 = sigma2[1:, :]
-        grad1 = sigma2.dot(a1)
-        grad2 = sigma3.dot(a2.T)
-        grad3 = sigma4.dot(a3.T)
+        sigma = [None for i in range(len(w))]
+        grad = [None for i in range(len(w))]
+        sigma[-1] = a[-1] - y_encode
+        for i in range(len(w)-2, -1, -1):
+            sigma[i] = w[i+1].T.dot(sigma[i+1]) * self._sigmoid_gradient(self._add_bias_unit(z[i], how='row'))
+            sigma[i] = sigma[i][1:, :]
+        if self.precision:
+            grad[0] = (sigma[0]*pow(10, self.precision)).astype(int).dot(x) / pow(10, self.precision)
+        else:
+            grad[0] = sigma[0].dot(x)
+        for i in range(1, len(w)):
+            grad[i] = sigma[i].dot(a[i-1].T)
 
         # regularize
-        grad1[:, 1:] += self.l2 * w1[:, 1:]
-        grad1[:, 1:] += self.l1 * np.sign(w1[:, 1:])
-        grad2[:, 1:] += self.l2 * w2[:, 1:]
-        grad2[:, 1:] += self.l1 * np.sign(w2[:, 1:])
-        grad3[:, 1:] += self.l2 * w3[:, 1:]
-        grad3[:, 1:] += self.l1 * np.sign(w3[:, 1:])
+        for i in range(len(w)):
+            grad[i][:, 1:] += self.l2 * w[i][:, 1:]
+            grad[i][:, 1:] += self.l1 * np.sign(w[i][:, 1:])
 
-        return grad1, grad2, grad3
+        return grad
 
-    def _get_gradient_secure(self, ct_batch, a2, a3, a4, z2, z3, y_encode, w1, w2, w3):
-        sigma4 = a4 - y_encode
-        z3 = self._add_bias_unit(z3, how='row')
-        sigma3 = w3.T.dot(sigma4) * self._sigmoid_gradient(z3)
-        sigma3 = sigma3[1:, :]
-        z2 = self._add_bias_unit(z2, how='row')
-        sigma2 = w2.T.dot(sigma3) * self._sigmoid_gradient(z2)
-        sigma2 = sigma2[1:, :]
+    def _get_gradient_secure(self, ct_batch, y_encode, a, z, w):
+        sigma = [None for i in range(len(w))]
+        grad = [None for i in range(len(w))]
+        sigma[-1] = a[-1] - y_encode
+        for i in range(len(w) - 2, -1, -1):
+            sigma[i] = w[i + 1].T.dot(sigma[i + 1]) * self._sigmoid_gradient(self._add_bias_unit(z[i], how='row'))
+            sigma[i] = sigma[i][1:, :]
+
         # using smc
-        # grad1 = sigma2.dot(a1)
         if isinstance(self.smc, Secure2PCServer):
-            sk_sigma2 = self.smc.request_key_ndarray(sigma2)
-            grad1 = self.smc.execute_ndarray(sk_sigma2, ct_batch.tolist(), sigma2)
+            sk_sigma0 = self.smc.request_key_ndarray(sigma[0])
+            grad[0] = self.smc.execute_ndarray(sk_sigma0, ct_batch.tolist(), sigma[0])
         elif isinstance(self.smc, EnhancedSecure2PCServer):
-            sk_sigma2 = self.smc.request_key_ndarray(sigma2, {'type': 'sife'})
-            grad1 = self.smc.execute_ndarray(sk_sigma2, ct_batch, sigma2, {'type': 'sife'})
+            sk_sigma0 = self.smc.request_key_ndarray(sigma[0], {'type': 'sife'})
+            grad[0] = self.smc.execute_ndarray(sk_sigma0, ct_batch, sigma[0], {'type': 'sife'})
         # end of smc
-        grad2 = sigma3.dot(a2.T)
-        grad3 = sigma4.dot(a3.T)
+
+        for i in range(1, len(w)):
+            grad[i] = sigma[i].dot(a[i - 1].T)
 
         # regularize
-        grad1[:, 1:] += self.l2 * w1[:, 1:]
-        grad1[:, 1:] += self.l1 * np.sign(w1[:, 1:])
-        grad2[:, 1:] += self.l2 * w2[:, 1:]
-        grad2[:, 1:] += self.l1 * np.sign(w2[:, 1:])
-        grad3[:, 1:] += self.l2 * w3[:, 1:]
-        grad3[:, 1:] += self.l1 * np.sign(w3[:, 1:])
+        for i in range(len(w)):
+            grad[i][:, 1:] += self.l2 * w[i][:, 1:]
+            grad[i][:, 1:] += self.l1 * np.sign(w[i][:, 1:])
 
-        return grad1, grad2, grad3
+        return grad
 
     def predict(self, X):
         if len(X.shape) != 2:
@@ -237,8 +246,8 @@ class CryptoNNServer(object):
                                  'Use X[:,None] for 1-feature classification,'
                                  '\nor X[[i]] for 1-sample classification')
         X = self._add_bias_unit(X, how='column')
-        z2, a2, z3, a3, z4, a4 = self._feedforward(X, self.w1, self.w2, self.w3)
-        y_pred = np.argmax(z4, axis=0)
+        z, a = self._feedforward(X, self.w)
+        y_pred = np.argmax(z[len(z)-1], axis=0)
         return y_pred
 
     def fit(self, x, y, x_test, y_test, print_progress=False):
@@ -247,9 +256,7 @@ class CryptoNNServer(object):
         train_time_hist = list()
         train_batch_time_hist = list()
 
-        delta_w1_prev = np.zeros(self.w1.shape)
-        delta_w2_prev = np.zeros(self.w2.shape)
-        delta_w3_prev = np.zeros(self.w3.shape)
+        delta_w_prev = [np.zeros(self.w[i].shape) for i in range(len(self.w))]
 
         start_time = time.perf_counter()
         for epoch in range(self.epochs):
@@ -264,10 +271,9 @@ class CryptoNNServer(object):
                 # feedforward
                 if self.smc:
                     if isinstance(self.smc, Secure2PCServer):
-                        z2, a2, z3, a3, z4, a4 = self._feedforward_secure(x[0][i], self.w1, self.w2, self.w3)
-                        cost += self._get_cost(y_encode=y[i], output=a4, w1=self.w1, w2=self.w2, w3=self.w3)
-                        grad1, grad2, grad3 = self._get_gradient_secure(ct_batch=x[1][i], a2=a2, a3=a3, a4=a4, z2=z2, z3=z3,
-                                                                 y_encode=y[i], w1=self.w1, w2=self.w2, w3=self.w3)
+                        z, a = self._feedforward_secure(x[0][i], self.w)
+                        cost += self._get_cost(y_encode=y[i], output=a[-1], w=self.w)
+                        grad = self._get_gradient_secure(ct_batch=x[1][i], y_encode=y[i], a=a, z=z, w=self.w)
                     elif isinstance(self.smc, EnhancedSecure2PCServer):
                         # fuse the mife cts of one batch from multiple parties
                         batch_size = y[i].shape[1]
@@ -284,21 +290,18 @@ class CryptoNNServer(object):
                         for id in self.parties.keys():
                             ct_bp_batch_lst = ct_bp_batch_lst + x[1][id][i].tolist()
 
-                        z2, a2, z3, a3, z4, a4 = self._feedforward_secure(ct_ff_batch_lst, self.w1, self.w2, self.w3)
-                        cost += self._get_cost(y_encode=y[i], output=a4, w1=self.w1, w2=self.w2, w3=self.w3)
-                        grad1, grad2, grad3 = self._get_gradient_secure(ct_batch=ct_bp_batch_lst, a2=a2, a3=a3, a4=a4, z2=z2, z3=z3,
-                                                                 y_encode=y[i], w1=self.w1, w2=self.w2, w3=self.w3)
+                        z, a = self._feedforward_secure(ct_ff_batch_lst, self.w)
+                        cost += self._get_cost(y_encode=y[i], output=a[-1], w=self.w)
+                        grad = self._get_gradient_secure(ct_batch=ct_bp_batch_lst, y_encode=y[i], a=a, z=z, w=self.w)
                 else:
-                    z2, a2, z3, a3, z4, a4 = self._feedforward(x[i], self.w1, self.w2, self.w3)
-                    cost += self._get_cost(y_encode=y[i], output=a4, w1=self.w1, w2=self.w2, w3=self.w3)
-                    grad1, grad2, grad3 = self._get_gradient(a1=x[i], a2=a2, a3=a3, a4=a4, z2=z2, z3=z3,
-                                                      y_encode=y[i], w1=self.w1, w2=self.w2, w3=self.w3)
+                    z, a = self._feedforward(x[i], self.w)
+                    cost += self._get_cost(y_encode=y[i], output=a[-1], w=self.w)
+                    grad = self._get_gradient(x=x[i], y_encode=y[i], a=a, z=z, w=self.w)
 
-                delta_w1, delta_w2, delta_w3 = self.eta * grad1, self.eta * grad2, self.eta * grad3
-                self.w1 -= (delta_w1 + (self.alpha * delta_w1_prev))
-                self.w2 -= (delta_w2 + (self.alpha * delta_w2_prev))
-                self.w3 -= (delta_w3 + (self.alpha * delta_w3_prev))
-                delta_w1_prev, delta_w2_prev, delta_w3_prev = delta_w1, delta_w2, delta_w3
+                delta_w = [self.eta * grad[i] for i in range(len(self.w))]
+                for i in range(len(self.w)):
+                    self.w[i] -= (delta_w[i] + (self.alpha * delta_w_prev[i]))
+                delta_w_prev = delta_w
 
                 train_batch_time_hist.append(time.perf_counter() - start_time)
 
