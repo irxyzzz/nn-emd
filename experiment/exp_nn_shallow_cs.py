@@ -31,11 +31,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 sec_param_config_file = 'config/sec_param.json'
-dlog_table_config_file = 'config/dlog_b9.json'
+dlog_table_config_file = 'config/dlog_b8.json'
 
 def test_generate_config_files():
     logger.info('generating config files')
-    func_value_bound = 1000000000
+    func_value_bound = 100000000
     sec_param = 256
     generate_config_files(sec_param, sec_param_config_file, dlog_table_config_file, func_value_bound)
     logger.info('generating config files -- DONE')
