@@ -29,6 +29,35 @@ def test_draw_cost_time():
                 "NN-MEDS (VPT)"))
     plt.savefig('experiment/res/training_time_diff_layers.eps')
 
+
+def test_draw_cost_time_remote():
+    s2pc_cost_time = []
+    es2pc_cost_time = []
+    with open('res/cmp_time_diff_layers.txt', 'r') as infile:
+        for line in infile:
+            if 'training using secure2pc setting' in line:
+                s2pc_cost_time.append(float(line.split(':')[2].split(' ')[1]))
+            elif 'training using enhanced secure2pc setting' in line:
+                es2pc_cost_time.append(float(line.split(':')[2].split(' ')[1]))
+
+    # es2pc_cost_time = [69.39, 69.19, 69.17, 68.84, 69.07, 68.7, 68.72, 68.42, 68.78, 69.03, 68.35, 68.04, 68.22, 68.62, 68.0, 75.86, 79.13, 74.49, 72.16, 71.57, 70.91, 70.14, 70.04, 69.45, 69.1, 68.96, 69.09, 68.71, 68.54, 68.24]
+    # s2pc_cost_time = [151.45, 121.43, 117.05, 115.34, 113.3, 112.38, 111.78, 112.05, 110.98, 111.47, 109.96, 109.7, 109.7, 109.79, 110.19, 108.97, 108.61, 121.68, 125.48, 117.83, 115.49, 113.58, 112.56, 111.82, 111.38, 109.94, 109.89, 110.28, 109.64, 109.32]
+    # s2pc_cost_time = s2pc_cost_time[4::5]
+    # es2pc_cost_time = es2pc_cost_time[4::5]
+    # x = [5, 10, 15, 20, 25, 30]
+    x = [i for i in range(1, 31)]
+
+    plt.plot(x, np.array(s2pc_cost_time) / 5)
+    plt.plot(x, np.array(es2pc_cost_time) / 5)
+    plt.xlabel("# hidden layers")
+    # plt.xticks(s2pc_cost_time, ['5', '10', '15', '20', '25', '30'])
+    plt.ylabel("time (s)")
+    # plt.title("training time of one mini-batch for different hidden layers")
+    plt.legend(("NN-MEDS (HPT)",
+                "NN-MEDS (VPT)"))
+    plt.savefig('experiment/res/training_time_diff_layers_remote.eps')
+
+
 def test_draw_acc_diff_precision():
     acc_precision_lst = []
     with open('logs/acc_diff_precision.log', 'r') as infile:
