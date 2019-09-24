@@ -11,7 +11,7 @@ def timer(ctx, logger):
     """Helper for measuring runtime"""
     time0 = time.perf_counter()
     yield
-    logger.info('[%s][elapsed time: %.2f s]' % (ctx, time.perf_counter() - time0))
+    logger.info('[%s][elapsed time: %.4f s]' % (ctx, time.perf_counter() - time0))
 
 
 def load_mnist(path, kind='train'):

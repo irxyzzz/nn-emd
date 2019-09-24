@@ -30,30 +30,37 @@ logger = logging.getLogger(__name__)
 
 
 def test_nn_shallow_mnist():
-    # X_train, y_train = load_mnist_size('datasets/mnist', size=600)
-    # X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
-    X_train, y_train = load_mnist('datasets/mnist')
-    X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
+    X_train, y_train = load_mnist_size('datasets/mnist', size=600)
+    X_test, y_test = load_mnist_size('datasets/mnist', size=100, kind='t10k')
+    # X_train, y_train = load_mnist('datasets/mnist')
+    # X_test, y_test = load_mnist('datasets/mnist', kind='t10k')
 
     # shuffle
     X_data, y_data = X_train.copy(), y_train.copy()
     idx = np.random.permutation(X_data.shape[0])
     X_data, y_data = X_data[idx], y_data[idx]
 
-    total_mini_batches = 100
+    total_mini_batches = 10
 
-    nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
-                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+    hidden_layers_lst = [
+        [256],
+        [256, 128, 64],
+        [256, 128, 64, 32, 16]
+    ]
+    for hidden_layers in hidden_layers_lst:
+        nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
+        nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=hidden_layers,
+                               l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
                                decrease_const=0.0001, mini_batches=total_mini_batches)
 
-    X_client, y_client = nn_client.pre_process(X_data, y_data)
-    (train_loss_hist,
-     test_acc_hist,
-     train_batch_time_hist,
-     train_time_hist) = nn_server.fit(X_client, y_client, X_test, y_test)
-    logger.info('train loss: \n' + str(train_loss_hist))
-    logger.info('test acc: \n' + str(test_acc_hist))
+        X_client, y_client = nn_client.pre_process(X_data, y_data)
+        with timer('training using secure2pc setting - 10 batches-' + str(hidden_layers), logger) as t:
+            (train_loss_hist,
+             test_acc_hist,
+             train_batch_time_hist,
+             train_time_hist) = nn_server.fit(X_client, y_client, X_test, y_test)
+            logger.info('train loss: \n' + str(train_loss_hist))
+            logger.info('test acc: \n' + str(test_acc_hist))
 
 def test_nn_shallow_mnist_smc():
     logger.info('test nn shallow mnist with secure 2pc setting')
