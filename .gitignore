@@ -109,3 +109,4 @@ logs
 test/.hypothesis/
 temp/
 config/*
+experiment/res/*
