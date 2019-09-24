@@ -367,7 +367,6 @@ def test_exp_diff_networks():
             nn_server_enhanced.fit((ct_ff_lst_dict, ct_bp_lst_dict), final_y_onehot_lst, X_test, y_test)
         logger.info('enhanced secure2pc setting: server training DONE')
 
-
 def test_exp_diff_networks_same_hidden_layer():
     logger.info('experiment for time cost for one mini-batch for different networks with same hidden layer')
 
@@ -436,7 +435,7 @@ def test_exp_diff_networks_same_hidden_layer():
                                    l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.01,
                                    decrease_const=0.001, mini_batches=total_mini_batches, smc=s2pc_server)
         logger.info('secure2pc setting: server start to train ...')
-        with timer('training using secure2pc setting - 10 batches - ' + str(len(hidden_layers)) + ' layers', logger) as t:
+        with timer('training using secure2pc setting - 5 batches - ' + str(len(hidden_layers)) + ' layers', logger) as t:
             nn_server.fit((ct_feedforward_lst, ct_backpropagation_lst), y_onehot_lst, X_test, y_test)
         logger.info('secure2pc setting: server training DONE')
 
@@ -475,7 +474,7 @@ def test_exp_diff_networks_same_hidden_layer():
             nn_server_enhanced.register(nn_client_enhanced_dict[id])
 
         logger.info('enhanced secure2pc setting: server start to train ...')
-        with timer('training using enhanced secure2pc setting - 10 batches - ' + str(len(hidden_layers)) + ' layers', logger) as t:
+        with timer('training using enhanced secure2pc setting - 5 batches - ' + str(len(hidden_layers)) + ' layers', logger) as t:
             nn_server_enhanced.fit((ct_ff_lst_dict, ct_bp_lst_dict), final_y_onehot_lst, X_test, y_test)
         logger.info('enhanced secure2pc setting: server training DONE')
 
