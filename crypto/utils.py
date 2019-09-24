@@ -80,7 +80,8 @@ def generate_config_files(sec_param, sec_param_config, dlog_table_config, func_b
     }
 
     with open(dlog_table_config, 'w') as outfile:
-        outfile.write(_json_zip(dlog_table_dict))
+        # outfile.write(_json_zip(dlog_table_dict))
+        json.dump(dlog_table_dict, outfile)
     logger.info('Generate dlog table config file successfully, see file %s' % dlog_table_config)
 
 
@@ -98,8 +99,9 @@ def load_sec_param_config(sec_param_config_file):
 
 def load_dlog_table_config(dlog_table_config_file):
     with open(dlog_table_config_file, 'r') as infile:
-        config_content = infile.read()
-        store_dict = _json_unzip(config_content)
+        # config_content = infile.read()
+        # store_dict = _json_unzip(config_content)
+        store_dict = json.load(infile)
 
         dlog_table = store_dict['dlog_table']
         func_bound = store_dict['func_bound']
