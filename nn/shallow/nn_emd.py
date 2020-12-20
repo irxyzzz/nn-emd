@@ -13,7 +13,7 @@ from nn.smc import EnhancedSecure2PCClient
 logger = logging.getLogger(__name__)
 
 @six.add_metaclass(abc.ABCMeta)
-class CryptoNNClient(object):
+class NNEMDClient(object):
     def __init__(self, n_output, mini_batches, n_features, smc=None, random_seed=None, id=None):
         np.random.seed(random_seed)
         self.n_output = n_output
@@ -77,7 +77,7 @@ class CryptoNNClient(object):
 
 
 @six.add_metaclass(abc.ABCMeta)
-class CryptoNNServer(object):
+class NNEMDServer(object):
     def __init__(self, n_output, n_features, hidden_layers,
                  l1=0.0, l2=0.0, epochs=500, eta=0.001,
                  alpha=0.0, decrease_const=0.0,
