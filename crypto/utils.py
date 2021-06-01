@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 def _random(maximum, bits):
     rand_function = random.SystemRandom()
     r = gp.mpz(rand_function.getrandbits(bits))
-    while r > maximum:
+    while r >= maximum:
         r = gp.mpz(rand_function.getrandbits(bits))
     return r
 
@@ -56,11 +56,11 @@ def generate_config_files(sec_param, sec_param_config, dlog_table_config, func_b
     p, q, r = _param_generator(sec_param)
     g = _random_generator(sec_param, p, r)
     group_info = {
-        'p': gp.digits(p),
-        'q': gp.digits(q),
-        'r': gp.digits(r)
+        'p': int(p),
+        'q': int(q),
+        'r': int(r)
     }
-    sec_param_dict = {'g': gp.digits(g), 'sec_param': sec_param, 'group': group_info}
+    sec_param_dict = {'g': int(g), 'sec_param': sec_param, 'group': group_info}
 
     with open(sec_param_config, 'w') as outfile:
         json.dump(sec_param_dict, outfile)
@@ -69,12 +69,12 @@ def generate_config_files(sec_param, sec_param_config, dlog_table_config, func_b
     dlog_table = dict()
     bound = func_bound + 1
     for i in range(bound):
-        dlog_table[gp.digits(gp.powmod(g, i, p))] = i
+        dlog_table[int(gp.powmod(g, i, p))] = i
     for i in range(-1, -bound, -1):
-        dlog_table[gp.digits(gp.powmod(g, i, p))] = i
+        dlog_table[int(gp.powmod(g, i, p))] = i
 
     dlog_table_dict = {
-        'g': gp.digits(g),
+        'g': int(g),
         'func_bound': func_bound,
         'dlog_table': dlog_table
     }
