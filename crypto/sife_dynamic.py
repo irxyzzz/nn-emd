@@ -111,8 +111,8 @@ class SIFEDynamic:
         hash table.
         """
         if self.dlog_table is not None:
-            if gp.digits(h) in self.dlog_table:
-                return self.dlog_table[gp.digits(h)]
+            if int(h) in self.dlog_table:
+                return self.dlog_table[int(h)]
         else:
             logger.warning("did not find f in dlog table, may cost more time to compute")
             return self._solve_dlog_naive(p, g, h, dlog_max)
@@ -248,8 +248,8 @@ class SIFEDynamicClient(object):
         hash table.
         """
         if self.dlog_table is not None:
-            if gp.digits(h) in self.dlog_table:
-                return self.dlog_table[gp.digits(h)]
+            if int(h) in self.dlog_table:
+                return self.dlog_table[int(h)]
         else:
             logger.warning("did not find f in dlog table, may cost more time to compute")
             return self._solve_dlog_naive(p, g, h, dlog_max)
