@@ -31,10 +31,10 @@ def _random_prime(bits):
 
 def _param_generator(bits, r=2):
     while True:
-        q = _random_prime(bits - 1)
-        p = q * 2 + 1
+        p = _random_prime(bits)
+        q = (p - 1) // 2
         if gp.is_prime(p) and gp.is_prime(q):
-            break;
+            break
     return p, q, r
 
 def _json_zip(store_dict):
@@ -56,11 +56,11 @@ def generate_config_files(sec_param, sec_param_config, dlog_table_config, func_b
     p, q, r = _param_generator(sec_param)
     g = _random_generator(sec_param, p, r)
     group_info = {
-        'p': int(p),
-        'q': int(q),
-        'r': int(r)
+        'p': gp.digits(p),
+        'q': gp.digits(q),
+        'r': gp.digits(r)
     }
-    sec_param_dict = {'g': int(g), 'sec_param': sec_param, 'group': group_info}
+    sec_param_dict = {'g': gp.digits(g), 'sec_param': sec_param, 'group': group_info}
 
     with open(sec_param_config, 'w') as outfile:
         json.dump(sec_param_dict, outfile)
@@ -69,12 +69,12 @@ def generate_config_files(sec_param, sec_param_config, dlog_table_config, func_b
     dlog_table = dict()
     bound = func_bound + 1
     for i in range(bound):
-        dlog_table[int(gp.powmod(g, i, p))] = i
+        dlog_table[gp.digits(gp.powmod(g, i, p))] = i
     for i in range(-1, -bound, -1):
-        dlog_table[int(gp.powmod(g, i, p))] = i
+        dlog_table[gp.digits(gp.powmod(g, i, p))] = i
 
     dlog_table_dict = {
-        'g': int(g),
+        'g': gp.digits(g),
         'func_bound': func_bound,
         'dlog_table': dlog_table
     }
