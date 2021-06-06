@@ -14,13 +14,6 @@ from crypto.sife_dynamic import SIFEDynamicClient
 from crypto.mife_dynamic import MIFEDynamicTPA
 from crypto.mife_dynamic import MIFEDynamicClient
 
-t_str = str(datetime.datetime.today())
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-    datefmt='%m-%d %H:%M',
-    filename="logs/test_smc-" + '-'.join(t_str.split()[:1] + t_str.split()[1].split(':')[:2]) + '.log',
-    filemode='w')
 logger = logging.getLogger(__name__)
 
 def test_secure2pc():

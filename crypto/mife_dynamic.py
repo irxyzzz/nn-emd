@@ -59,7 +59,7 @@ class MIFEDynamic:
         self.mpk = {
             'g': self.g,
             'p': self.p,
-            'sec_param': int(self.sec_param),
+            'sec_param': self.sec_param,
             'g_w': g_w,
             'parties': self.parties
         }
@@ -179,8 +179,8 @@ class MIFEDynamic:
         hash table.
         """
         if self.dlog_table is not None:
-            if int(h) in self.dlog_table:
-                return self.dlog_table[int(h)]
+            if gp.digits(h) in self.dlog_table:
+                return self.dlog_table[gp.digits(h)]
         else:
             return self._solve_dlog_naive(p, g, h, dlog_max)
 
@@ -248,7 +248,7 @@ class MIFEDynamicTPA(object):
         self.mpk = {
             'g': self.g,
             'p': self.p,
-            'sec_param': int(self.sec_param),
+            'sec_param': self.sec_param,
             'g_w': g_w,
             'parties': self.parties
         }
@@ -397,8 +397,8 @@ class MIFEDynamicClient(object):
         hash table.
         """
         if self.dlog_table is not None:
-            if int(h) in self.dlog_table:
-                return self.dlog_table[int(h)]
+            if gp.digits(h) in self.dlog_table:
+                return self.dlog_table[gp.digits(h)]
         else:
             return self._solve_dlog_naive(p, g, h, dlog_max)
 

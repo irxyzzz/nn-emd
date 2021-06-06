@@ -1,17 +1,28 @@
+import os
 import random
 import logging
+from pytest import fixture
 
 from nn.utils import timer
 from crypto.utils import load_dlog_table_config
 from crypto.sife_dynamic import SIFEDynamic
 from crypto.sife_dynamic import SIFEDynamicTPA
 from crypto.sife_dynamic import SIFEDynamicClient
+from crypto.utils import generate_config_files
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-sec_param_config_file = 'config/sec_param.json'
-dlog_table_config_file = 'config/dlog_b8.json'
+@fixture
+def crypto_config():
+    sec_param_config = 'config/sife/sec_param.json'
+    dlog_table_config = 'config/sife/dlog_b7.json'
+    func_value_bound = 10000000
+    sec_param = 256
+    if not (os.path.exists(sec_param_config) and os.path.exists(dlog_table_config)):
+        logger.debug("could not find the crypto config file, generate a new one")
+        generate_config_files(sec_param, sec_param_config,
+                              dlog_table_config, func_value_bound)
+    return sec_param_config, dlog_table_config
 
 def test_sife_basic():
     logger.info("testing the correctness of basic sife.")
@@ -35,8 +46,9 @@ def test_sife_basic():
     with timer('total decryption time:', logger) as t:
         dec_prod = sife.decrypt(pk, sk, y, ct, max_interprod)
         logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+    assert dec_prod == check_prod
 
-def test_sife_basic_with_config():
+def test_sife_basic_with_config(crypto_config):
     logger.info("testing the correctness of sife using config file.")
 
     eta = 785
@@ -52,10 +64,10 @@ def test_sife_basic_with_config():
 
     logger.info('loading dlog configuration ...')
     with timer('load dlog config, cost time:', logger) as t:
-        dlog = load_dlog_table_config(dlog_table_config_file)
+        dlog = load_dlog_table_config(crypto_config[1])
     logger.info('load dlog configuration DONE')
     sife = SIFEDynamic(eta, sec_param=256,
-                       sec_param_config=sec_param_config_file, dlog=dlog)
+                       sec_param_config=crypto_config[0], dlog=dlog)
     sife.setup()
 
     pk = sife.generate_public_key(len(x))
@@ -65,6 +77,8 @@ def test_sife_basic_with_config():
     with timer('total decryption time:', logger) as t:
         dec_prod = sife.decrypt(pk, sk, y, ct, max_interprod)
         logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+    assert dec_prod == check_prod
+
 
 def test_sife_dynamic():
     logger.info('test dynamic sife in separate roles ...')
@@ -80,9 +94,9 @@ def test_sife_dynamic():
 
     logger.info('loading dlog configuration ...')
     with timer('load dlog config, cost time:', logger) as t:
-        dlog = load_dlog_table_config(dlog_table_config_file)
+        dlog = load_dlog_table_config(crypto_config[1])
     logger.info('load dlog configuration DONE')
-    sife_tpa = SIFEDynamicTPA(eta, sec_param=sec_param, sec_param_config=sec_param_config_file)
+    sife_tpa = SIFEDynamicTPA(eta, sec_param=sec_param, sec_param_config=crypto_config[0])
     sife_tpa.setup()
 
     sife_enc_client = SIFEDynamicClient(role='enc')
@@ -95,3 +109,4 @@ def test_sife_dynamic():
     with timer('total decryption time:', logger) as t:
         dec_prod = sife_dec_client.decrypt(pk, sk, y, ct, max_interprod)
         logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+    assert dec_prod == check_prod

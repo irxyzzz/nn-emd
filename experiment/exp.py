@@ -1,9 +1,7 @@
-import sys
 import datetime
 import logging
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from nn.shallow.nn_emd import NNEMDClient
 from nn.shallow.nn_emd import NNEMDServer

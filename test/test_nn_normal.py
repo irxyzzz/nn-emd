@@ -1,22 +1,10 @@
-import sys
-import datetime
 import logging
 
 import numpy as np
-import matplotlib.pyplot as plt
 
-from nn.shallow.nn_shallow import NNShallow
-from nn.utils import load_mnist_size
+from nn.shallow.nn_normal import NNShallow
 from nn.utils import load_mnist
-from nn.utils import timer
 
-t_str = str(datetime.datetime.today())
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
-    datefmt='%m-%d %H:%M',
-    filename="logs/test_nn_shallow-" + '-'.join(t_str.split()[:1] + t_str.split()[1].split(':')[:2]) + '.log',
-    filemode='w')
 logger = logging.getLogger(__name__)
 
 

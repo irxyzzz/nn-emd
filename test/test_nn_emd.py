@@ -2,11 +2,9 @@ import datetime
 import logging
 
 import numpy as np
-import matplotlib.pyplot as plt
 
-from nn.shallow.nn_shallow_cs import CryptoNNClient
-from nn.shallow.nn_shallow_cs import CryptoNNServer
-from nn.utils import load_mnist
+from nn.shallow.nn_emd import NNEMDClient
+from nn.shallow.nn_emd import NNEMDServer
 from nn.utils import load_mnist_size
 from nn.utils import timer
 from nn.smc import Secure2PCClient
@@ -48,10 +46,10 @@ def test_nn_shallow_mnist():
         [256, 128, 64, 32, 16]
     ]
     for hidden_layers in hidden_layers_lst:
-        nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
-        nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=hidden_layers,
-                               l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
-                               decrease_const=0.0001, mini_batches=total_mini_batches)
+        nn_client = NNEMDClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], random_seed=520)
+        nn_server = NNEMDServer(n_output=10, n_features=X_data.shape[1], hidden_layers=hidden_layers,
+                                l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
+                                decrease_const=0.0001, mini_batches=total_mini_batches)
 
         X_client, y_client = nn_client.pre_process(X_data, y_data)
         with timer('training using secure2pc setting - 10 batches-' + str(hidden_layers), logger) as t:
@@ -96,10 +94,10 @@ def test_nn_shallow_mnist_smc():
 
     total_mini_batches = 50
 
-    nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
-                               l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
-                               decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
+    nn_client = NNEMDClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
+    nn_server = NNEMDServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                            l2=0.1, l1=0.0, epochs=1, eta=0.001, alpha=0.001,
+                            decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
     logger.info('client encrypting DONE')
@@ -170,9 +168,9 @@ def test_nn_shallow_mnist_smc_enhanced():
 
     total_mini_batches = 50
 
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
-                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
-                               decrease_const=0.0001, mini_batches=total_mini_batches, smc=es2pc_server)
+    nn_server = NNEMDServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                            l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                            decrease_const=0.0001, mini_batches=total_mini_batches, smc=es2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_ff_lst_dict = dict()
     ct_bp_lst_dict = dict()
@@ -181,8 +179,8 @@ def test_nn_shallow_mnist_smc_enhanced():
     for id in setup_parties.keys():
         if x_idx_count == (len(setup_parties) - 1):
             n_features = X_data_lst[x_idx_count].shape[1] + 1
-            nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=n_features,
-                                       smc=es2pc_client, random_seed=520, id=id)
+            nn_client = NNEMDClient(n_output=10, mini_batches=total_mini_batches, n_features=n_features,
+                                    smc=es2pc_client, random_seed=520, id=id)
             nn_server.register(nn_client)
             ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data_lst[x_idx_count], y_data)
             ct_ff_lst_dict[id] = ct_feedforward_lst
@@ -190,8 +188,8 @@ def test_nn_shallow_mnist_smc_enhanced():
             final_y_onehot_lst = y_onehot_lst
         else:
             n_features = X_data_lst[x_idx_count].shape[1]
-            nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=n_features,
-                                       smc=es2pc_client, random_seed=520, id=id)
+            nn_client = NNEMDClient(n_output=10, mini_batches=total_mini_batches, n_features=n_features,
+                                    smc=es2pc_client, random_seed=520, id=id)
             nn_server.register(nn_client)
             ct_feedforward_lst, ct_backpropagation_lst = nn_client.pre_process(X_data_lst[x_idx_count])
             ct_ff_lst_dict[id] = ct_feedforward_lst
@@ -240,10 +238,10 @@ def test_nn_shallow_mnist_smc_cryptonn():
 
     total_mini_batches = 1
 
-    nn_client = CryptoNNClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
-    nn_server = CryptoNNServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
-                               l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
-                               decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
+    nn_client = NNEMDClient(n_output=10, mini_batches=total_mini_batches, n_features=X_data.shape[1], smc=secure2pc_client, random_seed=520)
+    nn_server = NNEMDServer(n_output=10, n_features=X_data.shape[1], hidden_layers=[64],
+                            l2=0.1, l1=0.0, epochs=50, eta=0.001, alpha=0.001,
+                            decrease_const=0.0001, mini_batches=total_mini_batches, smc=secure2pc_server)
     logger.info('client start to encrypt dataset ...')
     ct_feedforward_lst, ct_backpropagation_lst, y_onehot_lst = nn_client.pre_process(X_data, y_data)
     logger.info('client encrypting DONE')

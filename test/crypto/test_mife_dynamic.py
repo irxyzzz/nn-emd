@@ -1,5 +1,7 @@
+import os
 import random
 import logging
+from pytest import fixture
 
 import numpy as np
 
@@ -8,99 +10,115 @@ from crypto.mife_dynamic import MIFEDynamic
 from crypto.mife_dynamic import MIFEDynamicTPA
 from crypto.mife_dynamic import MIFEDynamicClient
 from crypto.utils import load_dlog_table_config
+from crypto.utils import generate_config_files
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-sec_param_config_file = 'config/sec_param.json'
-dlog_table_config_file = 'config/dlog_b8.json'
 
-def test_mife_basic():
-    logger.info("testing the correctness of basic mife.")
+@fixture
+def crypto_config():
+    sec_param_config = 'config/mife/sec_param.json'
+    dlog_table_config = 'config/mife/dlog_b7.json'
+    func_value_bound = 10000000
+    sec_param = 256
+    if not (os.path.exists(sec_param_config) and os.path.exists(dlog_table_config)):
+        logger.debug("could not find the crypto config file, generate a new one")
+        generate_config_files(sec_param, sec_param_config,
+                              dlog_table_config, func_value_bound)
+    return sec_param_config, dlog_table_config
 
+
+@fixture
+def parties_input_size():
     parties = {
         'idx-1': 2,
         'idx-2': 3,
         'idx-3': 4
     }
+    return parties
+
+
+def test_mife_basic(parties_input_size):
+    logger.info("testing the correctness of basic mife.")
 
     # prepare the test data
     max_test_value = 100
     x_dict = dict()
     x_vec_count = 0
     x_vec = []
-    for idx in parties.keys():
-        x_dict[idx] = [random.randint(0, max_test_value) for m in range(parties[idx])]
-        x_vec_count = x_vec_count + parties[idx]
+    for idx in parties_input_size.keys():
+        x_dict[idx] = [random.randint(0, max_test_value) for _ in range(parties_input_size[idx])]
+        x_vec_count = x_vec_count + parties_input_size[idx]
         x_vec = x_vec + x_dict[idx]
-    y_vec = [random.randint(0, max_test_value) for i in range(x_vec_count)]
+    y_vec = [random.randint(0, max_test_value) for _ in range(x_vec_count)]
 
-    logger.debug("x: %s" % str(x_vec))
-    logger.debug("y: %s" % str(y_vec))
-    logger.debug('original dot product <x,y>: %d' % int(sum(np.array(x_vec) * np.array(y_vec))))
+    logger.debug("x: {}".format(x_vec))
+    logger.debug("y: {}".format(y_vec))
+    logger.debug('original dot product <x,y>: {}'.format(sum(np.array(x_vec) * np.array(y_vec))))
 
-    mife = MIFEDynamic(sec_param=256, parties=parties)
+    mife = MIFEDynamic(sec_param=256, parties=parties_input_size)
     mife.setup()
     ct = dict()
-    ct['parties'] = parties
+    ct['parties'] = parties_input_size
     ct['ct_dict'] = dict()
-    for idx in parties.keys():
+    for idx in parties_input_size.keys():
         pk = mife.generate_public_key(idx)
         ct['ct_dict'][idx] = mife.encrypt(pk, x_dict[idx])
 
     common_pk = mife.generate_common_public_key()
-    sk = mife.generate_private_key(y_vec, parties)
+    sk = mife.generate_private_key(y_vec, parties_input_size)
     max_inner_prod = 1000000
-    with timer('total decryption time:', logger) as t:
+    with timer('total decryption time:', logger) as _:
         dec_prod = mife.decrypt(common_pk, sk, y_vec, ct, max_inner_prod)
-        logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+        logger.debug('decrypted dot product <x,y>: {}'.format(dec_prod))
 
-def test_mife_basic_with_config():
+    assert dec_prod == sum(np.array(x_vec) * np.array(y_vec))
+
+
+def test_mife_basic_with_config(parties_input_size,
+                                crypto_config):
     logger.info("testing the correctness of mife using config file.")
 
-    parties = {
-        'idx-1': 2,
-        'idx-2': 3,
-        'idx-3': 4
-    }
-
-    # prepare the test data
     max_test_value = 100
     x_dict = dict()
     x_vec_count = 0
     x_vec = []
-    for idx in parties.keys():
-        x_dict[idx] = [random.randint(0, max_test_value) for m in range(parties[idx])]
-        x_vec_count = x_vec_count + parties[idx]
+    for idx in parties_input_size.keys():
+        x_dict[idx] = [random.randint(0, max_test_value) for _ in range(parties_input_size[idx])]
+        x_vec_count = x_vec_count + parties_input_size[idx]
         x_vec = x_vec + x_dict[idx]
     y_vec = [random.randint(0, max_test_value) for i in range(x_vec_count)]
 
-    logger.debug("x: %s" % str(x_vec))
-    logger.debug("y: %s" % str(y_vec))
-    logger.debug('original dot product <x,y>: %d' % int(sum(np.array(x_vec) * np.array(y_vec))))
+    logger.debug("x: {}".format(x_vec))
+    logger.debug("y: {}".format(y_vec))
+    logger.debug('original dot product <x,y>: {}'.format(sum(np.array(x_vec) * np.array(y_vec))))
 
     logger.info('loading dlog configuration ...')
     with timer('load dlog config, cost time:', logger) as t:
-        dlog = load_dlog_table_config(dlog_table_config_file)
+        dlog = load_dlog_table_config(crypto_config[1])
     logger.info('load dlog configuration DONE')
-    mife = MIFEDynamic(sec_param=256, parties=parties,
-                       sec_param_config=sec_param_config_file, dlog=dlog)
+    mife = MIFEDynamic(sec_param=256, parties=parties_input_size,
+                       sec_param_config=crypto_config[0], dlog=dlog)
     mife.setup()
     ct = dict()
-    ct['parties'] = parties
+    ct['parties'] = parties_input_size
     ct['ct_dict'] = dict()
-    for idx in parties.keys():
+    for idx in parties_input_size.keys():
         pk = mife.generate_public_key(idx)
         ct['ct_dict'][idx] = mife.encrypt(pk, x_dict[idx])
 
     common_pk = mife.generate_common_public_key()
-    sk = mife.generate_private_key(y_vec, parties)
+    sk = mife.generate_private_key(y_vec, parties_input_size)
     max_inner_prod = 1000000
     with timer('total decryption time:', logger) as t:
         dec_prod = mife.decrypt(common_pk, sk, y_vec, ct, max_inner_prod)
-        logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+        logger.debug('decrypted dot product <x,y>: {}'.format(dec_prod))
 
-def test_mife_dynamic():
+    assert dec_prod == sum(np.array(x_vec) * np.array(y_vec))
+
+
+def test_mife_dynamic(parties_input_size,
+                      crypto_config):
     logger.info('test dynamic mife ...')
     setup_parties = {
         'idx-1': 2,
@@ -112,10 +130,10 @@ def test_mife_dynamic():
     }
     logger.info('loading dlog configuration ...')
     with timer('load dlog config, cost time:', logger) as t:
-        dlog = load_dlog_table_config(dlog_table_config_file)
+        dlog = load_dlog_table_config(crypto_config[1])
     logger.info('load dlog configuration DONE')
     mife = MIFEDynamic(sec_param=256, parties=setup_parties,
-                       sec_param_config=sec_param_config_file, dlog=dlog)
+                       sec_param_config=crypto_config[0], dlog=dlog)
     mife.setup()
 
     enrolled_parties = {
@@ -152,8 +170,11 @@ def test_mife_dynamic():
     with timer('total decryption time:', logger) as t:
         dec_prod = mife.decrypt(common_pk, sk, y_vec, ct, max_inner_prod)
         logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+    assert dec_prod == sum(np.array(x_vec) * np.array(y_vec))
 
-def test_mife_dynamic_separate():
+
+def test_mife_dynamic_separate(parties_input_size,
+                               crypto_config):
     logger.info('test dynamic mife in separate roles ...')
     setup_parties = {
         'idx-1': 2,
@@ -165,10 +186,10 @@ def test_mife_dynamic_separate():
     }
     logger.info('loading dlog configuration ...')
     with timer('load dlog config, cost time:', logger) as t:
-        dlog = load_dlog_table_config(dlog_table_config_file)
+        dlog = load_dlog_table_config(crypto_config[1])
     logger.info('load dlog configuration DONE')
 
-    mife_tpa = MIFEDynamicTPA(sec_param=256, parties=setup_parties, sec_param_config=sec_param_config_file)
+    mife_tpa = MIFEDynamicTPA(sec_param=256, parties=setup_parties, sec_param_config=crypto_config[0])
     mife_tpa.setup()
     mife_enc_client = MIFEDynamicClient(sec_param=256, role='enc')
     mife_dec_client = MIFEDynamicClient(sec_param=256, role='dec', dlog=dlog)
@@ -207,3 +228,5 @@ def test_mife_dynamic_separate():
     with timer('total decryption time:', logger) as t:
         dec_prod = mife_dec_client.decrypt(common_pk, sk, y_vec, ct, max_inner_prod)
         logger.debug('decrypted dot product <x,y>: %d' % dec_prod)
+
+    assert dec_prod == sum(np.array(x_vec) * np.array(y_vec))
